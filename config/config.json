@@ -35,6 +35,6 @@
     "maxProvidersParallel": 3,
     "allowBooks": true,
     "allowAudiobooks": true,
-    "titleWeight": 100
+    "titleWeight": 60
   }
 }

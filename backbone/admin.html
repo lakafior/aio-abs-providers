@@ -44,6 +44,11 @@
     <input id="global_titleWeight" type="range" min="0" max="100" value="60" />
     <span id="titleWeightLabel">Title 60% / Author 40%</span>
   </div>
+  <div style="margin-top:8px">
+    <label>Similarity threshold:</label>
+    <input id="global_similarityThreshold" type="range" min="0" max="100" value="30" />
+    <span id="similarityThresholdLabel">>= 30%</span>
+  </div>
 
   <div class="controls">
     <button id="reload">Reload</button>
@@ -184,6 +189,8 @@
       document.getElementById('global_allowAudiobooks').checked = (cfg.global && typeof cfg.global.allowAudiobooks !== 'undefined') ? !!cfg.global.allowAudiobooks : true;
       document.getElementById('global_titleWeight').value = (cfg.global && typeof cfg.global.titleWeight === 'number') ? cfg.global.titleWeight : 60;
       document.getElementById('titleWeightLabel').textContent = `Title ${document.getElementById('global_titleWeight').value}% / Author ${100 - document.getElementById('global_titleWeight').value}%`;
+      document.getElementById('global_similarityThreshold').value = (cfg.global && typeof cfg.global.similarityThreshold === 'number') ? cfg.global.similarityThreshold : 30;
+      document.getElementById('similarityThresholdLabel').textContent = `>= ${document.getElementById('global_similarityThreshold').value}%`;
     }
 
     document.getElementById('reload').addEventListener('click', loadAndRender);
@@ -219,16 +226,27 @@
   newCfg.global.allowBooks = !!document.getElementById('global_allowBooks').checked;
   newCfg.global.allowAudiobooks = !!document.getElementById('global_allowAudiobooks').checked;
   newCfg.global.titleWeight = parseInt(document.getElementById('global_titleWeight').value, 10) || 60;
+  newCfg.global.similarityThreshold = parseInt(document.getElementById('global_similarityThreshold').value, 10) || 30;
 
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
       const res = await fetch('/admin/config', { method: 'PUT', headers, body: JSON.stringify(newCfg) });
       if (!res.ok) {
-        const err = await res.json();
-        setStatus('Save failed: ' + (err.error || res.statusText), true);
+        let err = null;
+        try { err = await res.json(); } catch(e) { /* ignore */ }
+        setStatus('Save failed: ' + (err && (err.error || JSON.stringify(err)) || res.statusText), true);
         return;
       }
+      const body = await res.json();
       setStatus('Saved');
+      // reload config from server response if provided
+      if (body && body.config) {
+        currentConfig = body.config;
+        renderConfig(currentConfig);
+      } else {
+        // fallback: re-fetch
+        await loadAndRender();
+      }
     });
 
     // Preview sorting panel
@@ -279,6 +297,14 @@
         const v = parseInt(e.target.value, 10) || 0;
         const lbl = document.getElementById('titleWeightLabel');
         if (lbl) lbl.textContent = `Title ${v}% / Author ${100 - v}%`;
+      });
+    }
+    const simSlider = document.getElementById('global_similarityThreshold');
+    if (simSlider) {
+      simSlider.addEventListener('input', (e) => {
+        const v = parseInt(e.target.value, 10) || 0;
+        const lbl = document.getElementById('similarityThresholdLabel');
+        if (lbl) lbl.textContent = `>= ${v}%`;
       });
     }
   </script>

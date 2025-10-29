@@ -17,25 +17,31 @@ try {
   process.exit(1);
 }
 
-const providers = [];
-for (const [name, opts] of Object.entries(config.providers || {})) {
-  if (!opts.enabled) {
-    console.log(`Provider ${name} is disabled in config`);
-    continue;
-  }
+let providers = [];
 
-  // Try to resolve provider module in ./<name>/provider.js
-  try {
-    const candidate = require.resolve(path.resolve(__dirname, '..', name, 'provider.js'));
-    // eslint-disable-next-line import/no-dynamic-require
-    const ProviderClass = require(candidate);
-  const instance = new ProviderClass(opts);
-  providers.push({ name, instance, opts, ProviderClass });
-    console.log(`Loaded provider ${name}`);
-  } catch (err) {
-    console.error(`Could not load provider ${name}:`, err.message);
+function reloadProviders(cfg) {
+  providers = [];
+  for (const [name, opts] of Object.entries((cfg && cfg.providers) || {})) {
+    if (!opts.enabled) {
+      console.log(`Provider ${name} is disabled in config`);
+      continue;
+    }
+
+    try {
+      const candidate = require.resolve(path.resolve(__dirname, '..', name, 'provider.js'));
+      // eslint-disable-next-line import/no-dynamic-require
+      const ProviderClass = require(candidate);
+      const instance = new ProviderClass(opts);
+      providers.push({ name, instance, opts, ProviderClass });
+      console.log(`Loaded provider ${name}`);
+    } catch (err) {
+      console.error(`Could not load provider ${name}:`, err.message);
+    }
   }
 }
+
+// initial load
+reloadProviders(config);
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -104,19 +110,79 @@ app.get('/search', async (req, res) => {
     return true;
   });
 
-  // Sort by similarity desc; on equal similarity, prefer audiobooks over books
-  filtered.sort((a, b) => {
+  // At this point 'filtered' contains scored items we may want to show.
+  // Apply similarity threshold: only fetch full metadata for matches >= threshold and show those.
+  const thresholdPct = (config.global && typeof config.global.similarityThreshold === 'number') ? config.global.similarityThreshold : 0;
+  const threshold = Math.max(0, Math.min(100, thresholdPct)) / 100;
+
+  // Candidates above threshold
+  const candidates = filtered.filter(m => (typeof m.similarity === 'number') ? (m.similarity >= threshold) : false);
+
+  // Group by provider name
+  const byProvider = candidates.reduce((acc, m) => {
+    (acc[m._provider] = acc[m._provider] || []).push(m);
+    return acc;
+  }, {});
+
+  // For each provider, fetch full metadata for its candidates
+  const fullFetchPromises = Object.entries(byProvider).map(async ([providerName, matches]) => {
+    const providerObj = providers.find(p => p.name === providerName);
+    if (!providerObj) return [];
+    const inst = providerObj.instance;
+    // If provider exposes mapWithConcurrency, use it for parallel metadata fetches
+    if (typeof inst.mapWithConcurrency === 'function') {
+      try {
+        const limit = (config.providers && config.providers[providerName] && config.providers[providerName].concurrency) || 5;
+        const results = await inst.mapWithConcurrency(matches, async (match) => {
+          try {
+            if (typeof inst.getFullMetadata === 'function') {
+              return await inst.getFullMetadata(match);
+            }
+            return match;
+          } catch (err) {
+            console.error(`Error fetching metadata for provider ${providerName}:`, err && err.message ? err.message : err);
+            return null;
+          }
+        }, limit);
+        return results.filter(Boolean);
+      } catch (err) {
+        console.error(`Error in mapWithConcurrency for provider ${providerName}:`, err && err.message ? err.message : err);
+        return [];
+      }
+    }
+
+    // Fallback: sequential fetches
+    const out = [];
+    for (const match of matches) {
+      try {
+        if (typeof inst.getFullMetadata === 'function') {
+          const full = await inst.getFullMetadata(match);
+          if (full) out.push(full);
+        } else {
+          out.push(match);
+        }
+      } catch (err) {
+        console.error(`Error fetching metadata for provider ${providerName}:`, err && err.message ? err.message : err);
+      }
+    }
+    return out;
+  });
+
+  const nested = await Promise.all(fullFetchPromises);
+  const fullResults = nested.flat();
+
+  // Sort final results same as before (similarity desc, audiobook preference, provider priority)
+  fullResults.sort((a, b) => {
     if (b.similarity !== a.similarity) return b.similarity - a.similarity;
     const aIsAudio = (a.type === 'audiobook' || (a.format && a.format === 'audiobook')) ? 1 : 0;
     const bIsAudio = (b.type === 'audiobook' || (b.format && b.format === 'audiobook')) ? 1 : 0;
-    if (bIsAudio !== aIsAudio) return bIsAudio - aIsAudio; // audiobook first
-    // If both same type (both audiobook or both book), use provider priority (higher first)
+    if (bIsAudio !== aIsAudio) return bIsAudio - aIsAudio;
     const aPriority = typeof a._providerPriority === 'number' ? a._providerPriority : 0;
     const bPriority = typeof b._providerPriority === 'number' ? b._providerPriority : 0;
     return bPriority - aPriority;
   });
 
-  res.json({ providers: all, matches: filtered });
+  res.json({ providers: all, matches: fullResults });
 });
 
 // Admin endpoints for config. If ADMIN_TOKEN is set, require Bearer token; otherwise allow (LAN internal use).
@@ -150,7 +216,14 @@ app.put('/admin/config', checkAdmin, express.json(), (req, res) => {
     configLoader.saveConfig(newCfg);
     // reload in-memory
     config = configLoader.loadConfig();
-    res.json({ ok: true });
+    // reload provider instances in background
+    try {
+      reloadProviders(config);
+    } catch (err) {
+      console.error('Error reloading providers after config save:', err && err.message ? err.message : err);
+    }
+    console.log('Config saved. global.titleWeight=', (config.global && config.global.titleWeight));
+    res.json({ ok: true, config });
   } catch (err) {
     res.status(400).json({ error: err.message, details: err.details || null });
   }
