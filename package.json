@@ -6,9 +6,10 @@
   "main": "backbone/server.js",
   "scripts": {
     "start:backbone": "node backbone/server.js",
-    "start:audioteka": "node audioteka/server.js",
-    "start:lubimyczytac": "node lubimyczytac/server.js",
-    "start:all": "concurrently \"npm: start:audioteka\" \"npm: start:lubimyczytac\" \"npm: start:backbone\"",
+  "start:audioteka": "node audioteka/server.js",
+  "start:lubimyczytac": "node lubimyczytac/server.js",
+  "start:storytel": "node storytel/server.js",
+  "start:all": "concurrently \"npm: start:audioteka\" \"npm: start:lubimyczytac\" \"npm: start:storytel\" \"npm: start:backbone\"",
     "test": "echo \"No tests configured\" && exit 0"
   },
   "dependencies": {
@@ -16,6 +17,8 @@
     "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "concurrently": "^8.0.0"
+    "concurrently": "^8.0.0",
+    "node-cache": "^5.1.2",
+    "string-similarity": "^4.0.4"
   }
 }

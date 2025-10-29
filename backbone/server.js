@@ -5,7 +5,7 @@ const cors = require('cors');
 // Expected usage: set PROVIDERS env var as a comma-separated list of provider folder paths,
 // e.g. PROVIDERS="./audioteka,./lubimyczytac"
 
-const providerPaths = (process.env.PROVIDERS || './audioteka,./lubimyczytac').split(',').map(p => p.trim()).filter(Boolean);
+const providerPaths = (process.env.PROVIDERS || './audioteka,./lubimyczytac,./storytel').split(',').map(p => p.trim()).filter(Boolean);
 const providers = [];
 
 for (const p of providerPaths) {
