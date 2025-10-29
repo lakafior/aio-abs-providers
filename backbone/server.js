@@ -115,10 +115,29 @@ app.get('/search', async (req, res) => {
   const thresholdPct = (config.global && typeof config.global.similarityThreshold === 'number') ? config.global.similarityThreshold : 0;
   const threshold = Math.max(0, Math.min(100, thresholdPct)) / 100;
 
-  // Candidates above threshold
-  const candidates = filtered.filter(m => (typeof m.similarity === 'number') ? (m.similarity >= threshold) : false);
+  // Apply per-provider maxResults cap BEFORE thresholding to limit noisy providers
+  // Group filtered items by provider
+  const byProviderAll = filtered.reduce((acc, m) => {
+    (acc[m._provider] = acc[m._provider] || []).push(m);
+    return acc;
+  }, {});
 
-  // Group by provider name
+  // For each provider, sort by similarity and apply maxResults if configured (>0)
+  const cappedByProvider = {};
+  for (const [providerName, matches] of Object.entries(byProviderAll)) {
+    const providerCfg = (config.providers && config.providers[providerName]) || {};
+    const max = typeof providerCfg.maxResults === 'number' ? providerCfg.maxResults : 0;
+    let sorted = matches.slice().sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+    if (max > 0) sorted = sorted.slice(0, max);
+    cappedByProvider[providerName] = sorted;
+  }
+
+  const capped = Object.values(cappedByProvider).flat();
+
+  // Candidates above threshold (after per-provider capping)
+  const candidates = capped.filter(m => (typeof m.similarity === 'number') ? (m.similarity >= threshold) : false);
+
+  // Group by provider name for metadata fetching
   const byProvider = candidates.reduce((acc, m) => {
     (acc[m._provider] = acc[m._provider] || []).push(m);
     return acc;
