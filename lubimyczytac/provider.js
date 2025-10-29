@@ -178,11 +178,29 @@ class LubimyCzytacProvider {
       }
 
       const translator = this.extractTranslator($);
+      // Try to extract narrator/lector info (Polish pages use 'Czyta' or similar)
+      let narrator = '';
+      try {
+        narrator = $('dt:contains("Czyta")').next('dd').text().trim() || '';
+        if (!narrator) {
+          // look for product-detail-item label patterns
+          const narrDiv = $('.product-detail-item').filter(function() {
+            const lbl = $(this).find('.label').text().trim();
+            return /Czyta|Czytają|Czytał|Czytała/i.test(lbl);
+          }).find('.value');
+          if (narrDiv && narrDiv.length) {
+            narrator = narrDiv.text().trim();
+          }
+        }
+      } catch (err) {
+        narrator = '';
+      }
 
       const fullMetadata = {
         ...match,
         cover,
         description: this.enrichDescription(description, pages, publishedDate, translator),
+        narrator: narrator || undefined,
         languages: languages.map(lang => this.getLanguageName(lang)),
         publisher,
         publishedDate,

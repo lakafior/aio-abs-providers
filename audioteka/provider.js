@@ -77,10 +77,13 @@ class AudiotekaProvider {
         const bookUrl = this.baseUrl + $book.find('.teaser_link__fxVFQ').attr('href');
         const authors = [$book.find('.teaser_author__LWTRi').text().trim()];
   // try common lazy-load attributes and fallbacks for cover
-  const teaserImg = $book.find('.teaser_coverImage__YMrBt');
-  const coverSrc = teaserImg.attr('data-src') || teaserImg.attr('data-srcset') || teaserImg.attr('src') || teaserImg.find('source').attr('srcset');
-  const coverUrl = coverSrc ? (typeof coverSrc === 'string' ? coverSrc.split(',')[0].trim().split(' ')[0] : coverSrc) : null;
-  const cover = cleanCoverUrl(coverUrl || '');
+  // Try several selectors and lazy-load attributes for teaser cover; normalize and clean URL
+  const teaserEl = $book.find('.teaser_coverImage__YMrBt, img.teaser-image, img');
+  let coverSrc = teaserEl.attr('src') || teaserEl.attr('data-src') || teaserEl.attr('data-srcset') || teaserEl.attr('srcset') || teaserEl.find('source').attr('srcset');
+  if (coverSrc && typeof coverSrc === 'string' && coverSrc.includes(',')) {
+    coverSrc = coverSrc.split(',')[0].trim().split(' ')[0];
+  }
+  const cover = cleanCoverUrl(coverSrc || null) || null;
         const rating = parseFloat($book.find('.teaser-footer_rating__TeVOA').text().trim()) || null;
 
         const id = $book.attr('data-item-id') || bookUrl.split('/').pop();
@@ -372,7 +375,8 @@ class AudiotekaProvider {
         description = `${audioTekaLink}<br><br>${sanitizedDescription}`;
       }
 
-      const cover = cleanCoverUrl($('.product-top_cover__Pth8B, .product-cover img, .book-cover img, .product-image img').attr('src') || match.cover);
+  const pageCoverSrc = $('.product-top_cover__Pth8B, .product-cover img, .book-cover img, .product-image img').attr('src') || $('.product-top_cover__Pth8B, .product-cover img, .book-cover img, .product-image img').attr('data-src');
+  const pageCover = cleanCoverUrl(pageCoverSrc || match.cover) || null;
 
       const languages = this.language === 'cz' 
         ? ['czech'] 
@@ -380,7 +384,7 @@ class AudiotekaProvider {
 
       const fullMetadata = {
         ...match,
-        cover,
+        cover: pageCover || match.cover,
         narrator: narrators,
         duration: durationInMinutes,
         publisher,

@@ -50,7 +50,9 @@ app.get('/search', async (req, res) => {
 
   const tasks = providers.map(async (p) => {
     try {
-      const results = await p.instance.searchBooks(q, author);
+      // Pass provider configured language (if available) so providers like Storytel can use it
+      const providerLang = (config.providers && config.providers[p.name] && config.providers[p.name].language) || undefined;
+      const results = await p.instance.searchBooks(q, author, providerLang);
       return { provider: p.name, matches: results.matches || [] };
     } catch (err) {
       return { provider: p.name, error: String(err) };

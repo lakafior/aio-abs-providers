@@ -86,6 +86,12 @@
       authors.textContent = 'Authors: ' + ((m.authors && m.authors.join(', ')) || '');
       meta.appendChild(authors);
 
+      if (m.narrator || m.lector) {
+        const narr = document.createElement('div');
+        narr.textContent = 'Narrator: ' + (m.narrator || m.lector || '');
+        meta.appendChild(narr);
+      }
+
       if (m.description) {
         const desc = document.createElement('p');
         desc.innerHTML = m.description.length > 1000 ? (m.description.slice(0,1000) + '...') : m.description;
