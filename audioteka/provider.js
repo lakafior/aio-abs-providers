@@ -403,3 +403,5 @@ class AudiotekaProvider {
 }
 
 module.exports = AudiotekaProvider;
+// supported languages for admin UI
+module.exports.supportedLanguages = ['pl', 'cz'];

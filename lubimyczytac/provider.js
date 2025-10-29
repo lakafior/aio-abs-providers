@@ -288,3 +288,5 @@ class LubimyCzytacProvider {
 }
 
 module.exports = LubimyCzytacProvider;
+// supported languages for admin UI (ISO codes)
+module.exports.supportedLanguages = ['pl'];

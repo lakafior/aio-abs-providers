@@ -29,8 +29,8 @@ for (const [name, opts] of Object.entries(config.providers || {})) {
     const candidate = require.resolve(path.resolve(__dirname, '..', name, 'provider.js'));
     // eslint-disable-next-line import/no-dynamic-require
     const ProviderClass = require(candidate);
-    const instance = new ProviderClass(opts);
-    providers.push({ name, instance, opts });
+  const instance = new ProviderClass(opts);
+  providers.push({ name, instance, opts, ProviderClass });
     console.log(`Loaded provider ${name}`);
   } catch (err) {
     console.error(`Could not load provider ${name}:`, err.message);
@@ -117,6 +117,15 @@ function checkAdmin(req, res, next) {
 
 app.get('/admin/config', checkAdmin, (req, res) => {
   res.json(config);
+});
+
+// Provide provider metadata (supported languages etc) to admin UI
+app.get('/admin/providers/meta', checkAdmin, (req, res) => {
+  const meta = providers.map(p => {
+    const supported = (p.ProviderClass && p.ProviderClass.supportedLanguages) || (p.ProviderClass && p.ProviderClass.supportedLanguages) || [];
+    return { name: p.name, supportedLanguages: supported };
+  });
+  res.json(meta);
 });
 
 app.put('/admin/config', checkAdmin, express.json(), (req, res) => {

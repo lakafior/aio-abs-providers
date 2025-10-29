@@ -330,3 +330,5 @@ class StorytelProvider {
 }
 
 module.exports = StorytelProvider;
+// supported languages / locales for admin UI
+module.exports.supportedLanguages = ['en', 'pl', 'de', 'sv', 'da', 'fi', 'fr', 'nl', 'es', 'pt', 'it', 'is', 'bg', 'ar', 'he', 'hi'];

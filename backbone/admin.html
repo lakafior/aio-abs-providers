@@ -73,59 +73,79 @@
       return cfg;
     }
 
-    function renderProvider(name, cfg) {
+    const LANGS = [
+      { code: 'pl', label: '🇵🇱 pl' },
+      { code: 'en', label: '🇬🇧 en' },
+      { code: 'cz', label: '🇨🇿 cz' },
+      { code: 'de', label: '🇩🇪 de' },
+      { code: 'fr', label: '🇫🇷 fr' }
+    ];
+
+    function makeLanguageSelect(selected, supportedList) {
+      const sel = document.createElement('select');
+      sel.dataset.key = 'language';
+      const options = (supportedList && supportedList.length) ? supportedList.map(code => ({ code, label: code })) : LANGS;
+      for (const opt of options) {
+        const o = document.createElement('option');
+        o.value = opt.code;
+        o.textContent = opt.label || opt.code;
+        sel.appendChild(o);
+      }
+      if (selected && !Array.from(sel.options).some(o => o.value === selected)) {
+        const o = document.createElement('option'); o.value = selected; o.textContent = selected; sel.appendChild(o);
+      }
+      sel.value = selected || '';
+      return sel;
+    }
+
+    function renderProvider(name, cfg, supported = []) {
       const div = document.createElement('div');
       div.className = 'provider';
       div.dataset.name = name;
 
-      const enabled = document.createElement('input');
-      enabled.type = 'checkbox';
-      enabled.checked = !!cfg.enabled;
+      const enabled = document.createElement('input'); enabled.type = 'checkbox'; enabled.dataset.key = 'enabled'; enabled.checked = !!cfg.enabled;
+      const language = makeLanguageSelect(cfg.language || '', supported);
+      const priority = document.createElement('input'); priority.type = 'number'; priority.min = 0; priority.dataset.key = 'priority'; priority.value = (typeof cfg.priority === 'number') ? cfg.priority : 0;
+      const concurrency = document.createElement('input'); concurrency.type = 'number'; concurrency.min = 1; concurrency.dataset.key = 'concurrency'; concurrency.value = cfg.concurrency || 1;
+      const timeout = document.createElement('input'); timeout.type = 'number'; timeout.min = 100; timeout.dataset.key = 'timeoutMs'; timeout.value = cfg.timeoutMs || 10000;
 
-      const language = document.createElement('input');
-      language.type = 'text';
-      language.value = cfg.language || '';
-
-    const priority = document.createElement('input');
-    priority.type = 'number';
-    priority.min = 0;
-    priority.value = (typeof cfg.priority === 'number') ? cfg.priority : 0;
-
-      const concurrency = document.createElement('input');
-      concurrency.type = 'number';
-      concurrency.min = 1;
-      concurrency.value = cfg.concurrency || 1;
-
-      const timeout = document.createElement('input');
-      timeout.type = 'number';
-      timeout.min = 100;
-      timeout.value = cfg.timeoutMs || 10000;
-
-      const extras = document.createElement('textarea');
-      extras.rows = 3;
-      extras.cols = 40;
-      extras.value = JSON.stringify(cfg.extra || {}, null, 2);
+      // Extras: provider-specific typed inputs when possible
+      let extrasNode = null;
+      if (name === 'audioteka') {
+        // audioteka: addLinkToDescription boolean
+        const chk = document.createElement('input'); chk.type = 'checkbox'; chk.dataset.key = 'extra.addLinkToDescription'; chk.checked = !!(cfg.extra && cfg.extra.addLinkToDescription);
+        extrasNode = document.createElement('div'); extrasNode.appendChild(document.createTextNode('Add link to description: ')); extrasNode.appendChild(chk);
+      } else if (name === 'storytel') {
+        // storytel: preferredRegions as comma-separated
+        const regions = document.createElement('input'); regions.type = 'text'; regions.dataset.key = 'extra.preferredRegions'; regions.value = (cfg.extra && cfg.extra.preferredRegions) ? (cfg.extra.preferredRegions.join(',') ) : '';
+        extrasNode = document.createElement('div'); extrasNode.appendChild(document.createTextNode('Preferred regions (csv): ')); extrasNode.appendChild(regions);
+      } else {
+        const ta = document.createElement('textarea'); ta.rows = 3; ta.cols = 40; ta.dataset.key = 'extra'; ta.value = JSON.stringify(cfg.extra || {}, null, 2);
+        extrasNode = ta;
+      }
 
       div.innerHTML = `<h4>${name}</h4>`;
       const form = document.createElement('div');
-      form.appendChild(document.createTextNode('Enabled: ')); form.appendChild(enabled); form.appendChild(document.createElement('br'));
-      form.appendChild(document.createTextNode('Language: ')); form.appendChild(language); form.appendChild(document.createElement('br'));
-      form.appendChild(document.createTextNode('Concurrency: ')); form.appendChild(concurrency); form.appendChild(document.createElement('br'));
-  form.appendChild(document.createTextNode('TimeoutMs: ')); form.appendChild(timeout); form.appendChild(document.createElement('br'));
-  form.appendChild(document.createTextNode('Priority: ')); form.appendChild(priority); form.appendChild(document.createElement('br'));
-  form.appendChild(document.createTextNode('Extras (JSON): ')); form.appendChild(extras); form.appendChild(document.createElement('br'));
+      const row = (labelText, node) => { form.appendChild(document.createTextNode(labelText)); form.appendChild(node); form.appendChild(document.createElement('br')); };
+      row('Enabled: ', enabled);
+      row('Language: ', language);
+      row('Concurrency: ', concurrency);
+      row('TimeoutMs: ', timeout);
+      row('Priority: ', priority);
+      row('Extras: ', extrasNode);
 
       div.appendChild(form);
 
       return div;
     }
 
-    function renderConfig(cfg) {
+    function renderConfig(cfg, meta = []) {
       currentConfig = cfg;
       const container = document.getElementById('providers');
       container.innerHTML = '';
       for (const [name, p] of Object.entries(cfg.providers || {})) {
-        const node = renderProvider(name, p);
+        const providerMeta = (meta && meta.find && meta.find(m => m.name === name)) || {};
+        const node = renderProvider(name, p, providerMeta.supportedLanguages || []);
         container.appendChild(node);
       }
       document.getElementById('global_maxProvidersParallel').value = (cfg.global && cfg.global.maxProvidersParallel) || 3;
@@ -133,7 +153,16 @@
 
     async function loadAndRender() {
       const cfg = await fetchConfig();
-      if (cfg) renderConfig(cfg);
+      let meta = [];
+      try {
+        const headers = {};
+        if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+        const r = await fetch('/admin/providers/meta', { headers });
+        if (r.ok) meta = await r.json();
+      } catch (e) {
+        // ignore
+      }
+      if (cfg) renderConfig(cfg, meta);
     }
 
     document.getElementById('reload').addEventListener('click', loadAndRender);
@@ -144,14 +173,25 @@
       const container = document.getElementById('providers');
       for (const child of container.children) {
         const name = child.dataset.name;
-        const inputs = child.querySelectorAll('input, textarea');
-        const enabled = inputs[0].checked;
-        const language = inputs[1].value.trim();
-        const concurrency = parseInt(inputs[2].value, 10) || 1;
-        const timeoutMs = parseInt(inputs[3].value, 10) || 10000;
-        const priority = parseInt(inputs[4].value, 10) || 0;
+        const enabled = !!child.querySelector('[data-key="enabled"]').checked;
+        const language = child.querySelector('[data-key="language"]').value.trim();
+        const concurrency = parseInt(child.querySelector('[data-key="concurrency"]').value, 10) || 1;
+        const timeoutMs = parseInt(child.querySelector('[data-key="timeoutMs"]').value, 10) || 10000;
+        const priority = parseInt(child.querySelector('[data-key="priority"]').value, 10) || 0;
+
+        // Build extras based on inputs
         let extra = {};
-        try { extra = JSON.parse(inputs[5].value || '{}'); } catch (e) { setStatus('Invalid JSON in extras for ' + name, true); return; }
+        if (name === 'audioteka') {
+          const v = !!child.querySelector('[data-key="extra.addLinkToDescription"]').checked;
+          extra.addLinkToDescription = v;
+        } else if (name === 'storytel') {
+          const v = child.querySelector('[data-key="extra.preferredRegions"]').value.trim();
+          extra.preferredRegions = v ? v.split(',').map(s => s.trim()).filter(Boolean) : [];
+        } else {
+          const ta = child.querySelector('[data-key="extra"]').value || '{}';
+          try { extra = JSON.parse(ta); } catch (e) { setStatus('Invalid JSON in extras for ' + name, true); return; }
+        }
+
         newCfg.providers[name] = { enabled, priority, language, concurrency, timeoutMs, extra };
       }
       newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
@@ -165,6 +205,45 @@
         return;
       }
       setStatus('Saved');
+    });
+
+    // Preview sorting panel
+    const previewPanel = document.createElement('div');
+    previewPanel.id = 'previewPanel';
+    previewPanel.style.marginTop = '1rem';
+    previewPanel.innerHTML = '<h3>Provider priority preview</h3>' +
+      '<button id="previewBtn">Preview sorting with sample data</button>' +
+      '<div id="previewResult" style="margin-top:0.5rem"></div>';
+    document.querySelector('.controls').appendChild(previewPanel);
+
+    document.getElementById('previewBtn').addEventListener('click', () => {
+      // sample dataset: same similarity audiobooks from different providers
+      const samples = [
+        { title: 'Sample A', type: 'audiobook', _provider: 'audioteka', similarity: 0.95 },
+        { title: 'Sample B', type: 'audiobook', _provider: 'lubimyczytac', similarity: 0.95 },
+        { title: 'Sample C', type: 'audiobook', _provider: 'storytel', similarity: 0.95 },
+        { title: 'Sample D', type: 'book', _provider: 'audioteka', similarity: 0.95 }
+      ];
+
+      // read priorities from UI
+      const priorities = {};
+      for (const child of document.getElementById('providers').children) {
+        const name = child.dataset.name;
+        priorities[name] = parseInt(child.querySelector('[data-key="priority"]').value, 10) || 0;
+      }
+
+      const sorted = samples.slice().sort((a, b) => {
+        if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+        const aIsAudio = (a.type === 'audiobook') ? 1 : 0;
+        const bIsAudio = (b.type === 'audiobook') ? 1 : 0;
+        if (bIsAudio !== aIsAudio) return bIsAudio - aIsAudio;
+        const aP = priorities[a._provider] || 0;
+        const bP = priorities[b._provider] || 0;
+        return bP - aP;
+      });
+
+      const out = document.getElementById('previewResult');
+      out.innerHTML = '<ol>' + sorted.map(s => `<li>${s.title} — ${s.type} — provider: ${s._provider} — priority: ${priorities[s._provider]||0}</li>`).join('') + '</ol>';
     });
 
     // initial load
