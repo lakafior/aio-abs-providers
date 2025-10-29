@@ -39,6 +39,15 @@
     "allowBooks": true,
     "allowAudiobooks": true,
     "titleWeight": 60,
-    "similarityThreshold": 75
+    "similarityThreshold": 75,
+    "mergeBestResults": true,
+    "mergePreferences": {
+      "title": "lubimyczytac",
+      "authors": "lubimyczytac",
+      "narrator": "audioteka",
+      "description": "lubimyczytac",
+      "cover": "audioteka",
+      "series": "lubimyczytac"
+    }
   }
 }

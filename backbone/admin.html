@@ -53,6 +53,10 @@
     <label>Merge best results:</label>
     <input id="global_mergeBestResults" type="checkbox" />
   </div>
+  <div style="margin-top:8px">
+    <label>Merge field preferences:</label>
+    <div id="mergePrefs"></div>
+  </div>
 
   <div class="controls">
     <button id="reload">Reload</button>
@@ -198,6 +202,22 @@
       document.getElementById('global_similarityThreshold').value = (cfg.global && typeof cfg.global.similarityThreshold === 'number') ? cfg.global.similarityThreshold : 30;
       document.getElementById('similarityThresholdLabel').textContent = `>= ${document.getElementById('global_similarityThreshold').value}%`;
     document.getElementById('global_mergeBestResults').checked = !!(cfg.global && cfg.global.mergeBestResults);
+      // render merge preferences
+      const mergePrefs = cfg.global && cfg.global.mergePreferences ? cfg.global.mergePreferences : {};
+    const fields = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language'];
+      const providersList = Object.keys(cfg.providers || {});
+      const container = document.getElementById('mergePrefs');
+      container.innerHTML = '';
+      for (const f of fields) {
+        const lbl = document.createElement('div'); lbl.textContent = f + ':';
+        const sel = document.createElement('select'); sel.dataset.key = 'mergePref.' + f;
+        const optAuto = document.createElement('option'); optAuto.value = ''; optAuto.textContent = '<auto>'; sel.appendChild(optAuto);
+        for (const p of providersList) {
+          const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o);
+        }
+        sel.value = mergePrefs[f] || '';
+        container.appendChild(lbl); container.appendChild(sel);
+      }
     }
 
     document.getElementById('reload').addEventListener('click', loadAndRender);
@@ -236,6 +256,13 @@
   newCfg.global.titleWeight = parseInt(document.getElementById('global_titleWeight').value, 10) || 60;
   newCfg.global.similarityThreshold = parseInt(document.getElementById('global_similarityThreshold').value, 10) || 30;
   newCfg.global.mergeBestResults = !!document.getElementById('global_mergeBestResults').checked;
+  // read merge preferences
+  const prefFields = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language','genres','tags'];
+  newCfg.global.mergePreferences = {};
+  for (const f of prefFields) {
+    const sel = document.querySelector('[data-key="mergePref.' + f + '"]');
+    if (sel) newCfg.global.mergePreferences[f] = sel.value || null;
+  }
 
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = 'Bearer ' + authToken;

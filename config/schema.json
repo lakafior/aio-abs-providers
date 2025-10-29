@@ -31,6 +31,32 @@
         ,"titleWeight": { "type": "integer", "minimum": 0, "maximum": 100, "default": 60 }
         ,"similarityThreshold": { "type": "integer", "minimum": 0, "maximum": 100, "default": 30 }
         ,"mergeBestResults": { "type": "boolean", "default": false }
+        ,"mergePreferences": {
+          "type": "object",
+          "properties": {
+            "title": { "type": ["string", "null"] },
+            "authors": { "type": ["string", "null"] },
+            "narrator": { "type": ["string", "null"] },
+            "description": { "type": ["string", "null"] },
+            "cover": { "type": ["string", "null"] },
+            "series": { "type": ["string", "null"] },
+            "subtitle": { "type": ["string", "null"] },
+            "isbn": { "type": ["string", "null"] },
+            "asin": { "type": ["string", "null"] },
+            "duration": { "type": ["string", "null"] },
+            "publishedYear": { "type": ["string", "null"] },
+            "rating": { "type": ["string", "null"] },
+            "url": { "type": ["string", "null"] },
+            "source": { "type": ["string", "null"] },
+            "identifiers": { "type": ["string", "null"] },
+            "publisher": { "type": ["string", "null"] },
+            "seriesIndex": { "type": ["string", "null"] },
+            "language": { "type": ["string", "null"] },
+            "genres": { "type": ["string", "null"] },
+            "tags": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        }
       },
       "additionalProperties": false
     }

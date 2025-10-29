@@ -211,36 +211,188 @@ app.get('/search', async (req, res) => {
       const EPS = 1e-6;
       const topGroup = fullResults.filter(fr => Math.abs((fr.similarity || 0) - topSim) <= EPS);
       if (topGroup.length > 1) {
-        // Build merged result by preferring non-empty fields from the group in this order:
-        // - prefer items that are 'book' (rectangle) for cover
-        // - otherwise use first non-empty value among the group ordered by similarity then provider priority
-        const pickField = (field) => {
-          for (const item of topGroup) {
+        // Prefer items with higher provider priority and more metadata when selecting fields
+        const countNonEmpty = (item) => {
+          const fields = ['title','authors','narrator','description','cover','type','url','id','languages','publisher','publishedDate','series','genres','tags','identifiers'];
+          let c = 0;
+          for (const f of fields) if (item[f]) c++;
+          return c;
+        };
+
+        const sortedGroup = topGroup.slice().sort((a, b) => {
+          const pa = typeof a._providerPriority === 'number' ? a._providerPriority : 0;
+          const pb = typeof b._providerPriority === 'number' ? b._providerPriority : 0;
+          if (pb !== pa) return pb - pa;
+          return countNonEmpty(b) - countNonEmpty(a);
+        });
+
+        const prefs = (config.global && config.global.mergePreferences) || {};
+        const pickFieldFromSorted = (field) => {
+          // If user configured a preferred provider for this field, try it first
+          const preferred = prefs && prefs[field];
+          if (preferred) {
+            const preferredItem = sortedGroup.find(i => i._provider === preferred && i[field]);
+            if (preferredItem) return preferredItem[field];
+          }
+          for (const item of sortedGroup) {
             if (item[field]) return item[field];
           }
           return undefined;
         };
 
-  // pick cover: prefer audiobook (square) covers when available, otherwise fall back to any available cover
-  let cover = null;
-  const audioCandidate = topGroup.find(i => (i.type === 'audiobook' || (i.format && i.format === 'audiobook')) && i.cover);
-  if (audioCandidate) cover = audioCandidate.cover;
-  if (!cover) cover = pickField('cover') || pickField('image') || null;
+        // helpers for alias fields
+        const pickIdentifier = (key) => {
+          // preferred provider first
+          const preferred = prefs && prefs['identifiers'];
+          if (preferred) {
+            const p = sortedGroup.find(i => i._provider === preferred && i.identifiers && i.identifiers[key]);
+            if (p) return p.identifiers[key];
+          }
+          for (const it of sortedGroup) {
+            if (it.identifiers && it.identifiers[key]) return it.identifiers[key];
+          }
+          return undefined;
+        };
 
-        // merged object: copy a set of common fields
+        const pickPublishedYear = () => {
+          const preferred = prefs && prefs['publishedYear'];
+          if (preferred) {
+            const p = sortedGroup.find(i => i._provider === preferred && i.publishedDate);
+            if (p) return (new Date(p.publishedDate).getFullYear() || '').toString();
+          }
+          for (const it of sortedGroup) {
+            if (it.publishedDate) {
+              const y = new Date(it.publishedDate).getFullYear();
+              if (y) return y.toString();
+            }
+          }
+          return undefined;
+        };
+
+        const pickLanguage = () => {
+          const preferred = prefs && prefs['language'];
+          if (preferred) {
+            const p = sortedGroup.find(i => i._provider === preferred && i.languages && i.languages.length);
+            if (p) return p.languages[0];
+          }
+          for (const it of sortedGroup) {
+            if (Array.isArray(it.languages) && it.languages.length) return it.languages[0];
+          }
+          return undefined;
+        };
+
+        // pick cover: prefer audiobook (square) covers when available among sortedGroup, otherwise first available
+        let cover = null;
+        const audioCandidate = sortedGroup.find(i => (i.type === 'audiobook' || (i.format && i.format === 'audiobook')) && i.cover);
+        if (audioCandidate) cover = audioCandidate.cover;
+        if (!cover) cover = pickFieldFromSorted('cover') || pickFieldFromSorted('image') || null;
+
+        // merged object: copy many common fields, merging arrays/identifiers
         const merged = {};
-        merged.title = pickField('title') || '';
-        merged.authors = pickField('authors') || [];
-        merged.narrator = pickField('narrator') || pickField('lector') || '';
-        merged.description = pickField('description') || pickField('summary') || '';
+  merged.title = pickFieldFromSorted('title') || '';
+  merged.subtitle = pickFieldFromSorted('subtitle') || '';
+  merged.authors = pickFieldFromSorted('authors') || [];
+  merged.narrator = pickFieldFromSorted('narrator') || pickFieldFromSorted('lector') || '';
+  merged.description = pickFieldFromSorted('description') || pickFieldFromSorted('summary') || '';
         merged.cover = cover;
-        merged.type = pickField('type') || pickField('format') || (topGroup.some(i => i.type === 'audiobook') ? 'audiobook' : 'book');
+        merged.type = pickFieldFromSorted('type') || pickFieldFromSorted('format') || (topGroup.some(i => i.type === 'audiobook') ? 'audiobook' : 'book');
         merged.similarity = topSim;
-        merged._mergedFrom = topGroup.map(i => ({ provider: i._provider, id: i.id || i._id || null }));
 
-        // Insert merged at the top if not duplicating an existing identical top item
-        const topIsSame = fullResults[0].title === merged.title && fullResults[0].authors && merged.authors && fullResults[0].authors.join('|') === merged.authors.join('|');
-        if (!topIsSame) {
+        // URL/id/source
+  merged.id = pickFieldFromSorted('id') || pickFieldFromSorted('_id') || pickIdentifier('lubimyczytac') || pickIdentifier('audioteka') || '';
+  merged.url = pickFieldFromSorted('url') || pickFieldFromSorted('link') || '';
+  merged.source = pickFieldFromSorted('source') || null;
+
+        // languages: union
+        const langs = new Set();
+        for (const it of sortedGroup) {
+          if (Array.isArray(it.languages)) for (const L of it.languages) langs.add(L);
+        }
+        merged.languages = Array.from(langs);
+
+  merged.publisher = pickFieldFromSorted('publisher') || '';
+  merged.publishedYear = pickPublishedYear() || undefined;
+  merged.rating = pickFieldFromSorted('rating') || null;
+        // series: gather from any provider (string or array), prefer first non-empty
+        const seriesSet = new Set();
+        let seriesIndex = null;
+        for (const it of sortedGroup) {
+          if (Array.isArray(it.series)) for (const s of it.series) seriesSet.add(s);
+          else if (it.series) seriesSet.add(it.series);
+          if (!seriesIndex && (typeof it.seriesIndex !== 'undefined' && it.seriesIndex !== null)) seriesIndex = it.seriesIndex;
+        }
+        const seriesArr = Array.from(seriesSet);
+  merged.series = seriesArr.length ? seriesArr[0] : '';
+  merged.seriesIndex = seriesIndex || null;
+
+  merged.isbn = pickIdentifier('isbn') || undefined;
+  merged.asin = pickIdentifier('asin') || undefined;
+  merged.duration = pickFieldFromSorted('duration') || undefined;
+  merged.url = merged.url || pickFieldFromSorted('url') || undefined;
+  merged.language = pickLanguage() || undefined;
+
+        // genres/tags: respect preference, else union and normalize/dedupe
+        const normalize = (s) => (s || '').toString().trim().toLowerCase();
+        const pickListPrefOrUnion = (field) => {
+          const preferredProvider = prefs && prefs[field];
+          if (preferredProvider) {
+            const p = sortedGroup.find(i => i._provider === preferredProvider && Array.isArray(i[field]) && i[field].length);
+            if (p) return p[field].slice();
+          }
+          const set = new Set();
+          for (const it of sortedGroup) {
+            if (Array.isArray(it[field])) for (const v of it[field]) {
+              const n = normalize(v);
+              if (n) set.add(n);
+            }
+          }
+          return Array.from(set);
+        };
+
+        merged.genres = pickListPrefOrUnion('genres');
+        merged.tags = pickListPrefOrUnion('tags');
+
+        // record provenance for these merged lists
+        merged._mergedFieldSources = merged._mergedFieldSources || {};
+        merged._mergedFieldSources.genres = (prefs && prefs['genres']) ? prefs['genres'] : Array.from(new Set(sortedGroup.filter(i=>i.genres && i.genres.length).map(i=>i._provider)));
+        merged._mergedFieldSources.tags = (prefs && prefs['tags']) ? prefs['tags'] : Array.from(new Set(sortedGroup.filter(i=>i.tags && i.tags.length).map(i=>i._provider)));
+
+        // identifiers: merge keys preferring earlier providers
+        const identifiers = {};
+        for (const it of sortedGroup) {
+          if (it.identifiers && typeof it.identifiers === 'object') {
+            for (const [k, v] of Object.entries(it.identifiers)) {
+              if (!identifiers[k] && v) identifiers[k] = v;
+            }
+          }
+        }
+        merged.identifiers = identifiers;
+
+  merged._mergedFrom = topGroup.map(i => ({ provider: i._provider, id: i.id || i._id || null }));
+        // optional debug logging
+        if (config.global && config.global.mergeDebug) {
+          try {
+            console.log('mergeBestResults topGroup providers:', topGroup.map(t => ({ provider: t._provider, priority: t._providerPriority, fields: Object.keys(t).filter(k=>!!t[k]) })));
+            console.log('mergeBestResults merged:', merged);
+          } catch (e) { /* ignore logging errors */ }
+        }
+  // mark this synthetic result so frontends can easily identify it
+  merged._provider = 'merged';
+  // give merged a priority slightly above the highest provider in the group
+  merged._providerPriority = (Math.max(...topGroup.map(i => (typeof i._providerPriority === 'number' ? i._providerPriority : 0))) || 0) + 1;
+  merged.source = merged.source || { id: 'merged', description: 'Merged result' };
+
+        // Insert merged at the top if it is not redundant with the existing top item.
+        const top = fullResults[0];
+        const sameTitleAuthors = top.title === merged.title && top.authors && merged.authors && top.authors.join('|') === merged.authors.join('|');
+        const mergedFields = ['narrator', 'description', 'cover', 'languages', 'identifiers', 'genres', 'tags'];
+        const topHasAllMergedFields = mergedFields.every(f => {
+          if (!merged[f] || (Array.isArray(merged[f]) && merged[f].length === 0)) return true; // merged doesn't have it, ignore
+          if (Array.isArray(merged[f])) return Array.isArray(top[f]) && top[f].length > 0;
+          if (f === 'identifiers') return top[f] && Object.keys(top[f]).length > 0;
+          return !!top[f]; // merged has it -> top must also have it
+        });
+        if (!(sameTitleAuthors && topHasAllMergedFields)) {
           fullResults.unshift(merged);
         }
       }
