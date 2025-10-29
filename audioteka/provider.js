@@ -46,7 +46,12 @@ class AudiotekaProvider {
     this.baseUrl = 'https://audioteka.com';
     this.opts = options || {};
     this.language = this.opts.language || process.env.LANGUAGE || 'pl';
-    this.addAudiotekaLinkToDescription = (this.opts.extra && this.opts.extra.addLinkToDescription) || ((process.env.ADD_AUDIOTEKA_LINK_TO_DESCRIPTION || 'true').toLowerCase() === 'true');
+    // Respect explicit boolean in options.extra.addLinkToDescription. If undefined, fall back to env/default.
+    if (this.opts.extra && typeof this.opts.extra.addLinkToDescription !== 'undefined') {
+      this.addAudiotekaLinkToDescription = !!this.opts.extra.addLinkToDescription;
+    } else {
+      this.addAudiotekaLinkToDescription = ((process.env.ADD_AUDIOTEKA_LINK_TO_DESCRIPTION || 'true').toLowerCase() === 'true');
+    }
     this.metadataConcurrency = (this.opts.concurrency && Number.isFinite(this.opts.concurrency)) ? this.opts.concurrency : (() => {
       const v = parseInt(process.env.METADATA_CONCURRENCY, 10);
       return Number.isFinite(v) && v > 0 ? v : DEFAULT_METADATA_CONCURRENCY;
@@ -106,10 +111,8 @@ class AudiotekaProvider {
         }
       });
 
-  const fullMetadata = await this.mapWithConcurrency(matches, match => this.getFullMetadata(match, requestId), this.metadataConcurrency);
-      const filteredMetadata = fullMetadata.filter(book => book !== null);
-
-      return { matches: filteredMetadata };
+  // Return lightweight snippets here. Backbone will call getFullMetadata for selected candidates.
+  return { matches };
     } catch (error) {
       console.error(`[${requestId}] Error searching books:`, error.message, error.stack);
       return { matches: [] };
@@ -401,6 +404,31 @@ class AudiotekaProvider {
           audioteka: match.id,
         },
       };
+
+      // JSON-LD fallback for subtitle/publisher
+      try {
+        const scripts = $('.product-top script[type="application/ld+json"], script[type="application/ld+json"]');
+        for (let i = 0; i < scripts.length; i++) {
+          const txt = $(scripts[i]).text();
+          if (!txt) continue;
+          try {
+            const data = JSON.parse(txt);
+            const node = Array.isArray(data) ? data[0] : data;
+            if (!fullMetadata.subtitle) {
+              const sub = node.alternativeHeadline || node.headline || node.subtitle || node.alternateName;
+              if (sub && typeof sub === 'string' && sub.trim()) fullMetadata.subtitle = sub.trim();
+            }
+            if (!fullMetadata.publisher) {
+              if (node.publisher) {
+                if (typeof node.publisher === 'string') fullMetadata.publisher = node.publisher;
+                else if (node.publisher.name) fullMetadata.publisher = node.publisher.name;
+              }
+            }
+          } catch (e) {
+            continue;
+          }
+        }
+      } catch (e) {}
 
       return fullMetadata;
     } catch (error) {

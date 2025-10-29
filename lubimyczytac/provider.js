@@ -92,22 +92,9 @@ class LubimyCzytacProvider {
         return typeValueB - typeValueA;
       }).slice(0, 20);
 
-      const fullMetadata = await Promise.all(allMatches.map(match => this.getFullMetadata(match)));
-
-      const adjustedMetadata = fullMetadata.map(match => {
-        let adjustedSimilarity = match.similarity;
-        if (!match.identifiers?.isbn || match.identifiers.isbn === '') {
-          adjustedSimilarity *= 0.99;
-        }
-        return { ...match, similarity: adjustedSimilarity };
-      }).sort((a, b) => {
-        if (b.similarity !== a.similarity) return b.similarity - a.similarity;
-        const typeValueA = a.type === 'audiobook' ? 1 : 0;
-        const typeValueB = b.type === 'audiobook' ? 1 : 0;
-        return typeValueB - typeValueA;
-      });
-
-      const result = { matches: adjustedMetadata };
+      // Return lightweight snippets here. Backbone will decide which items to fetch full
+      // metadata for and call getFullMetadata() only for candidates.
+      const result = { matches: allMatches };
       this.cache.set(cacheKey, result);
       return result;
     } catch (error) {
@@ -214,6 +201,38 @@ class LubimyCzytacProvider {
           lubimyczytac: match.id,
         },
       };
+
+      // Try to extract additional metadata from JSON-LD scripts when some fields are missing
+      try {
+        const scripts = $('script[type="application/ld+json"]');
+        for (let i = 0; i < scripts.length; i++) {
+          const txt = $(scripts[i]).text();
+          if (!txt) continue;
+          try {
+            const data = JSON.parse(txt);
+            const candidates = [];
+            if (Array.isArray(data)) candidates.push(...data);
+            else candidates.push(data);
+            for (const node of candidates) {
+              if (!fullMetadata.subtitle) {
+                const sub = node.alternativeHeadline || node.headline || node.subtitle || node.alternateName;
+                if (sub && typeof sub === 'string' && sub.trim()) fullMetadata.subtitle = sub.trim();
+              }
+              if (!fullMetadata.publisher) {
+                if (node.publisher) {
+                  if (typeof node.publisher === 'string') fullMetadata.publisher = node.publisher;
+                  else if (node.publisher.name) fullMetadata.publisher = node.publisher.name;
+                }
+              }
+            }
+          } catch (err) {
+            // ignore JSON parse errors
+            continue;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
 
       return fullMetadata;
     } catch (error) {

@@ -77,6 +77,18 @@ app.get('/search', async (req, res) => {
     return acc;
   }, []);
 
+  // Normalize authors field on snippets so scoring code can safely call toLowerCase()
+  for (const m of combined) {
+    if (Array.isArray(m.authors)) {
+      m.authors = m.authors.map(a => (typeof a === 'string' ? a.trim() : (a ? String(a).trim() : ''))).filter(Boolean);
+    } else if (m.author && typeof m.author === 'string') {
+      // split common separators
+      m.authors = m.author.split(/\s*(?:,|;| and )\s*/).map(s => s.trim()).filter(Boolean);
+    } else {
+      m.authors = [];
+    }
+  }
+
   // Compute unified similarity for each match across all providers.
   // Strategy: compare match.title to query (case-insensitive) for titleSimilarity.
   // If author provided, compute best author similarity across match.authors and combine: 0.6*title + 0.4*author.
@@ -149,10 +161,13 @@ app.get('/search', async (req, res) => {
     if (!providerObj) return [];
     const inst = providerObj.instance;
     // If provider exposes mapWithConcurrency, use it for parallel metadata fetches
+    const limit = (config.providers && config.providers[providerName] && config.providers[providerName].concurrency) || 5;
+    const toFetch = matches.filter(m => !m._fullFetched);
+
+    // If provider exposes mapWithConcurrency, use it for parallel metadata fetches
     if (typeof inst.mapWithConcurrency === 'function') {
       try {
-        const limit = (config.providers && config.providers[providerName] && config.providers[providerName].concurrency) || 5;
-        const results = await inst.mapWithConcurrency(matches, async (match) => {
+        const results = await inst.mapWithConcurrency(toFetch, async (match) => {
           try {
             if (typeof inst.getFullMetadata === 'function') {
               return await inst.getFullMetadata(match);
@@ -163,16 +178,21 @@ app.get('/search', async (req, res) => {
             return null;
           }
         }, limit);
-        return results.filter(Boolean);
+        // Merge fetched results back with matches that were already full
+        const fetched = results.filter(Boolean);
+        const alreadyFull = matches.filter(m => m._fullFetched);
+        return [...alreadyFull, ...fetched];
       } catch (err) {
         console.error(`Error in mapWithConcurrency for provider ${providerName}:`, err && err.message ? err.message : err);
-        return [];
+        return matches;
       }
     }
 
-    // Fallback: sequential fetches
+    // Fallback: sequential fetches for the ones that need fetching
     const out = [];
-    for (const match of matches) {
+    // include already-full items first
+    for (const m of matches.filter(m => m._fullFetched)) out.push(m);
+    for (const match of toFetch) {
       try {
         if (typeof inst.getFullMetadata === 'function') {
           const full = await inst.getFullMetadata(match);
@@ -482,6 +502,15 @@ app.get('/search', async (req, res) => {
   };
 
   for (const it of fullResults) normalizeAuthors(it);
+  // Ensure subtitle and publisher exist where possible by looking into identifiers or nested fields
+  for (const it of fullResults) {
+    if ((!it.subtitle || it.subtitle === '') && it.identifiers && it.identifiers.title) {
+      it.subtitle = it.identifiers.title;
+    }
+    if ((!it.publisher || it.publisher === '') && it.source && it.source.description) {
+      it.publisher = it.source.description;
+    }
+  }
 
   res.json({ providers: all, matches: fullResults });
 });

@@ -310,18 +310,25 @@ class StorytelProvider {
                         const limitedBooks = books.slice(0, 10);
             console.log(`Found ${books.length} books in search results`);
 
-            const matches = await Promise.all(limitedBooks.map(async bookItem => {
+            // Return lightweight snippets only; Backbone will fetch full metadata when needed
+            const matches = limitedBooks.map(bookItem => {
                 const candidate = bookItem.book || bookItem;
                 const bookId = candidate && (candidate.id || candidate.bookId || candidate.book_id || candidate.bookID);
                 if (!bookId) return null;
-                const bookDetails = await this.getBookDetails(bookId, usedLocale);
-                if (!bookDetails) return null;
-                return this.formatBookMetadata(bookDetails);
-            }));
+                // Provide minimal snippet so backbone can score/cap candidates
+                return {
+                    id: bookId,
+                    title: candidate.name || candidate.title || null,
+                    authors: candidate.authors || (candidate.authorsAsString ? [candidate.authorsAsString] : []),
+                    url: null, // Storytel uses API for details
+                    source: { id: 'storytel', description: 'Storytel', link: 'https://storytel.com' },
+                    type: candidate.type || 'audiobook',
+                    // Save the raw candidate so getFullMetadata can use it if needed
+                    _raw: candidate
+                };
+            }).filter(Boolean);
 
-            const validMatches = matches.filter(match => match !== null);
-
-            const result = { matches: validMatches };
+            const result = { matches };
             cache.set(cacheKey, result);
             return result;
         } catch (error) {
@@ -355,6 +362,21 @@ class StorytelProvider {
             return null;
         }
     }
+
+    /**
+     * Provider-level wrapper to return full ABS-formatted metadata for a snippet.
+     * Backbone will call this for candidates.
+     */
+    async getFullMetadata(snippet) {
+        if (!snippet) return null;
+        const raw = snippet._raw;
+        if (!raw) {
+            // fallback: try to fetch book details by id
+            return this.formatBookMetadata(await this.getBookDetails(snippet.id, this.locale));
+        }
+        return this.formatBookMetadata(raw);
+    }
+
 }
 
 module.exports = StorytelProvider;
