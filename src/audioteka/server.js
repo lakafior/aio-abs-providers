@@ -7,12 +7,7 @@ const port = process.env.PORT || 3001;
 
 app.use(cors());
 
-// Middleware to check for AUTHORIZATION header
-app.use((req, res, next) => {
-  const apiKey = req.headers['authorization'];
-  if (!apiKey) return res.status(401).json({ error: 'Unauthorized' });
-  next();
-});
+// No authorization required for local provider servers
 
 const provider = new AudiotekaProvider();
 

@@ -544,15 +544,10 @@ app.get('/search', async (req, res) => {
   res.json({ providers: all, matches: fullResults });
 });
 
-// Admin endpoints for config. If ADMIN_TOKEN is set, require Bearer token; otherwise allow (LAN internal use).
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || null;
+// Admin endpoints for config — no authentication enforced (LAN use assumed).
 function checkAdmin(req, res, next) {
-  if (!ADMIN_TOKEN) return next(); // no auth required
-  const header = req.headers.authorization || '';
-  if (!header.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
-  const token = header.substring(7);
-  if (token !== ADMIN_TOKEN) return res.status(401).json({ error: 'Invalid token' });
-  next();
+  // deliberately allow all requests; remove ADMIN_TOKEN gating to simplify local use
+  return next();
 }
 
 app.get('/admin/config', checkAdmin, (req, res) => {

@@ -5,18 +5,14 @@ const StorytelProvider = require('./provider');
 
 const app = express();
 const port = process.env.PORT || 3000;
-const auth = process.env.AUTH;
+// no auth required for local Storytel mock server
+const auth = null;
 
 app.use(cors());
 
 const provider = new StorytelProvider();
 
-const checkAuth = (req, res, next) => {
-    if (auth && (!req.headers.authorization || req.headers.authorization !== auth)) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    next();
-};
+const checkAuth = (req, res, next) => { next(); };
 
 const validateRegion = (req, res, next) => {
     const region = req.params.region;

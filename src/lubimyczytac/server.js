@@ -8,12 +8,8 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 
-// Middleware to check for AUTHORIZATION header
-app.use((req, res, next) => {
-  const apiKey = req.headers['authorization'];
-  if (!apiKey) return res.status(401).json({ error: 'Unauthorized' });
-  next();
-});
+// No authorization required for local provider servers
+// (was rejecting requests with missing Authorization header)
 
 // Axios 429 retry interceptor (kept from original)
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));

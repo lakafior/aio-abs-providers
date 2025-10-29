@@ -15,14 +15,7 @@
 </head>
 <body>
   <h1>Backbone Config Editor</h1>
-  <p>LAN UI — if ADMIN_TOKEN is set on server, enter it below to authenticate.</p>
-
-  <div>
-    <label>Admin token (optional):</label>
-    <input id="token" type="text" placeholder="Bearer token for admin" />
-    <button id="applyToken">Apply</button>
-    <span id="tokenStatus"></span>
-  </div>
+  <p>LAN UI — admin endpoints are accessible on the local network.</p>
 
   <div id="providers"></div>
 
@@ -65,8 +58,7 @@
   </div>
 
   <script>
-    let currentConfig = null;
-    let authToken = '';
+  let currentConfig = null;
 
     function setStatus(msg, isError = false) {
       const el = document.getElementById('status');
@@ -74,22 +66,11 @@
       el.style.color = isError ? 'red' : 'green';
     }
 
-    function setTokenStatus(msg, isError = false) {
-      const el = document.getElementById('tokenStatus');
-      el.textContent = msg;
-      el.style.color = isError ? 'red' : 'green';
-    }
-
-    document.getElementById('applyToken').addEventListener('click', () => {
-      authToken = document.getElementById('token').value.trim();
-      setTokenStatus(authToken ? 'Token applied' : 'No token');
-    });
+    function setTokenStatus(/* no-op: token removed */) {}
 
     async function fetchConfig() {
       setStatus('Loading...');
-      const headers = {};
-      if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
-      const res = await fetch('/admin/config', { headers });
+  const res = await fetch('/admin/config');
       if (!res.ok) {
         setStatus('Failed to load config: ' + res.statusText, true);
         return null;
@@ -183,9 +164,7 @@
       const cfg = await fetchConfig();
       let meta = [];
       try {
-        const headers = {};
-        if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
-        const r = await fetch('/admin/providers/meta', { headers });
+        const r = await fetch('/admin/providers/meta');
         if (r.ok) meta = await r.json();
       } catch (e) {
         // ignore
@@ -264,8 +243,7 @@
     if (sel) newCfg.global.mergePreferences[f] = sel.value || null;
   }
 
-      const headers = { 'Content-Type': 'application/json' };
-      if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+        const headers = { 'Content-Type': 'application/json' };
       const res = await fetch('/admin/config', { method: 'PUT', headers, body: JSON.stringify(newCfg) });
       if (!res.ok) {
         let err = null;
@@ -279,10 +257,8 @@
       if (body && body.config) {
         currentConfig = body.config;
         // fetch provider metadata and re-render so language selects stay provider-specific
-        try {
-          const headers = {};
-          if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
-          const rmeta = await fetch('/admin/providers/meta', { headers });
+          try {
+          const rmeta = await fetch('/admin/providers/meta');
           let meta = [];
           if (rmeta.ok) meta = await rmeta.json();
           renderConfig(currentConfig, meta);
