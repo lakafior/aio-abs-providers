@@ -370,8 +370,55 @@ app.get('/search', async (req, res) => {
         }
         merged.languages = Array.from(langs);
 
+  // publishedDate: prefer any provider that supplies a full ISO-like publishedDate
+  const pickPublishedDate = () => {
+    const preferred = prefs && prefs['publishedDate'];
+    if (preferred) {
+      const p = sortedGroup.find(i => i._provider === preferred && i.publishedDate);
+      if (p) return { value: p.publishedDate, source: preferred };
+    }
+    for (const it of sortedGroup) {
+      if (it.publishedDate) return { value: it.publishedDate, source: it._provider };
+    }
+    // no publishedDate found
+    return { value: undefined, source: null };
+  };
+
+  const pubDatePick = pickPublishedDate();
+  merged.publishedDate = pubDatePick.value || undefined;
+
+  // publishedYear: derive from publishedDate if present, otherwise fall back to any publishedYear field
+  const pickPublishedYear = () => {
+    // prefer explicit preference
+    const preferred = prefs && prefs['publishedYear'];
+    if (preferred) {
+      const p = sortedGroup.find(i => i._provider === preferred && (i.publishedDate || i.publishedYear));
+      if (p) {
+        if (p.publishedDate) return { value: (new Date(p.publishedDate).getFullYear() || '').toString(), source: preferred };
+        if (p.publishedYear) return { value: (p.publishedYear || '').toString(), source: preferred };
+      }
+    }
+    // derive from any publishedDate first
+    for (const it of sortedGroup) {
+      if (it.publishedDate) {
+        const y = new Date(it.publishedDate).getFullYear();
+        if (y) return { value: y.toString(), source: it._provider };
+      }
+    }
+    // fallback: any explicit publishedYear field
+    for (const it of sortedGroup) {
+      if (it.publishedYear) return { value: (it.publishedYear || '').toString(), source: it._provider };
+    }
+    return { value: undefined, source: null };
+  };
+
+  const pubYearPick = pickPublishedYear();
+  merged.publishedYear = pubYearPick.value || undefined;
+  // record provenance
+  merged._mergedFieldSources = merged._mergedFieldSources || {};
+  if (pubDatePick.source) merged._mergedFieldSources.publishedDate = pubDatePick.source;
+  if (pubYearPick.source) merged._mergedFieldSources.publishedYear = pubYearPick.source;
   merged.publisher = pickFieldAndSource('publisher').value || '';
-  merged.publishedYear = pickPublishedYearAndSource().value || undefined;
   merged.rating = pickFieldAndSource('rating').value || null;
         // series: respect preference, else gather from any provider (string or array), prefer first non-empty
         const seriesPref = prefs && prefs['series'];
