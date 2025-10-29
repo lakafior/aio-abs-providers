@@ -41,15 +41,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract image metadata
+      - name: Extract image metadata (only latest)
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
+          # Only publish a single 'latest' tag to avoid creating many variants on Docker Hub.
+          # This keeps the registry clean; if you later want branch/sha tags re-enable the other types.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=sha
+            type=raw,value=latest,enable=true
 
       - name: Build and push
         uses: docker/build-push-action@v5
