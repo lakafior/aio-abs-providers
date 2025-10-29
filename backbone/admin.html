@@ -204,7 +204,7 @@
     document.getElementById('global_mergeBestResults').checked = !!(cfg.global && cfg.global.mergeBestResults);
       // render merge preferences
       const mergePrefs = cfg.global && cfg.global.mergePreferences ? cfg.global.mergePreferences : {};
-    const fields = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language'];
+  const fields = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language','genres','tags'];
       const providersList = Object.keys(cfg.providers || {});
       const container = document.getElementById('mergePrefs');
       container.innerHTML = '';

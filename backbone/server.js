@@ -227,81 +227,100 @@ app.get('/search', async (req, res) => {
         });
 
         const prefs = (config.global && config.global.mergePreferences) || {};
-        const pickFieldFromSorted = (field) => {
-          // If user configured a preferred provider for this field, try it first
-          const preferred = prefs && prefs[field];
-          if (preferred) {
-            const preferredItem = sortedGroup.find(i => i._provider === preferred && i[field]);
-            if (preferredItem) return preferredItem[field];
-          }
-          for (const item of sortedGroup) {
-            if (item[field]) return item[field];
-          }
-          return undefined;
+
+        const hasField = (item, field) => {
+          if (!item) return false;
+          if (field === 'language') return Array.isArray(item.languages) && item.languages.length;
+          if (field === 'identifiers') return item.identifiers && Object.keys(item.identifiers).length > 0;
+          const v = item[field];
+          if (Array.isArray(v)) return v.length > 0;
+          return (typeof v !== 'undefined' && v !== null && v !== '');
         };
 
-        // helpers for alias fields
-        const pickIdentifier = (key) => {
-          // preferred provider first
+        const getFieldValue = (item, field) => {
+          if (!item) return undefined;
+          if (field === 'language') return Array.isArray(item.languages) && item.languages.length ? item.languages[0] : undefined;
+          return item[field];
+        };
+
+        const pickFieldAndSource = (field) => {
+          const preferred = prefs && prefs[field];
+          if (preferred) {
+            const p = sortedGroup.find(i => i._provider === preferred && hasField(i, field));
+            if (p) return { value: getFieldValue(p, field), source: preferred };
+          }
+          const contributor = sortedGroup.find(i => hasField(i, field));
+          if (contributor) return { value: getFieldValue(contributor, field), source: contributor._provider };
+          return { value: undefined, source: null };
+        };
+
+        const pickIdentifierAndSource = (key) => {
           const preferred = prefs && prefs['identifiers'];
           if (preferred) {
             const p = sortedGroup.find(i => i._provider === preferred && i.identifiers && i.identifiers[key]);
-            if (p) return p.identifiers[key];
+            if (p) return { value: p.identifiers[key], source: preferred };
           }
           for (const it of sortedGroup) {
-            if (it.identifiers && it.identifiers[key]) return it.identifiers[key];
+            if (it.identifiers && it.identifiers[key]) return { value: it.identifiers[key], source: it._provider };
           }
-          return undefined;
+          return { value: undefined, source: null };
         };
 
-        const pickPublishedYear = () => {
+        const pickPublishedYearAndSource = () => {
           const preferred = prefs && prefs['publishedYear'];
           if (preferred) {
             const p = sortedGroup.find(i => i._provider === preferred && i.publishedDate);
-            if (p) return (new Date(p.publishedDate).getFullYear() || '').toString();
+            if (p) return { value: (new Date(p.publishedDate).getFullYear() || '').toString(), source: preferred };
           }
           for (const it of sortedGroup) {
             if (it.publishedDate) {
               const y = new Date(it.publishedDate).getFullYear();
-              if (y) return y.toString();
+              if (y) return { value: y.toString(), source: it._provider };
             }
           }
-          return undefined;
+          return { value: undefined, source: null };
         };
 
-        const pickLanguage = () => {
+        const pickLanguageAndSource = () => {
           const preferred = prefs && prefs['language'];
           if (preferred) {
-            const p = sortedGroup.find(i => i._provider === preferred && i.languages && i.languages.length);
-            if (p) return p.languages[0];
+            const p = sortedGroup.find(i => i._provider === preferred && Array.isArray(i.languages) && i.languages.length);
+            if (p) return { value: p.languages[0], source: preferred };
           }
           for (const it of sortedGroup) {
-            if (Array.isArray(it.languages) && it.languages.length) return it.languages[0];
+            if (Array.isArray(it.languages) && it.languages.length) return { value: it.languages[0], source: it._provider };
           }
-          return undefined;
+          return { value: undefined, source: null };
         };
 
-        // pick cover: prefer audiobook (square) covers when available among sortedGroup, otherwise first available
-        let cover = null;
-        const audioCandidate = sortedGroup.find(i => (i.type === 'audiobook' || (i.format && i.format === 'audiobook')) && i.cover);
-        if (audioCandidate) cover = audioCandidate.cover;
-        if (!cover) cover = pickFieldFromSorted('cover') || pickFieldFromSorted('image') || null;
+        // pick cover using preference and record source
+        const coverPick = pickFieldAndSource('cover');
+        let coverValue = coverPick.value;
+        let coverSource = coverPick.source;
+        // prefer audiobook cover if preferred didn't yield
+        if (!coverValue) {
+          const audioCandidate = sortedGroup.find(i => (i.type === 'audiobook' || (i.format && i.format === 'audiobook')) && i.cover);
+          if (audioCandidate) {
+            coverValue = audioCandidate.cover;
+            coverSource = audioCandidate._provider;
+          }
+        }
 
         // merged object: copy many common fields, merging arrays/identifiers
         const merged = {};
-  merged.title = pickFieldFromSorted('title') || '';
-  merged.subtitle = pickFieldFromSorted('subtitle') || '';
-  merged.authors = pickFieldFromSorted('authors') || [];
-  merged.narrator = pickFieldFromSorted('narrator') || pickFieldFromSorted('lector') || '';
-  merged.description = pickFieldFromSorted('description') || pickFieldFromSorted('summary') || '';
-        merged.cover = cover;
-        merged.type = pickFieldFromSorted('type') || pickFieldFromSorted('format') || (topGroup.some(i => i.type === 'audiobook') ? 'audiobook' : 'book');
+        const titlePick = pickFieldAndSource('title'); merged.title = titlePick.value || '';
+        const subtitlePick = pickFieldAndSource('subtitle'); merged.subtitle = subtitlePick.value || '';
+        const authorsPick = pickFieldAndSource('authors'); merged.authors = authorsPick.value || [];
+        const narratorPick = pickFieldAndSource('narrator'); merged.narrator = narratorPick.value || '';
+        const descriptionPick = pickFieldAndSource('description'); merged.description = descriptionPick.value || '';
+        merged.cover = coverValue || null;
+        merged.type = (pickFieldAndSource('type').value) || (topGroup.some(i => i.type === 'audiobook') ? 'audiobook' : 'book');
         merged.similarity = topSim;
 
         // URL/id/source
-  merged.id = pickFieldFromSorted('id') || pickFieldFromSorted('_id') || pickIdentifier('lubimyczytac') || pickIdentifier('audioteka') || '';
-  merged.url = pickFieldFromSorted('url') || pickFieldFromSorted('link') || '';
-  merged.source = pickFieldFromSorted('source') || null;
+  merged.id = (pickFieldAndSource('id').value) || pickIdentifierAndSource('lubimyczytac').value || pickIdentifierAndSource('audioteka').value || '';
+  merged.url = (pickFieldAndSource('url').value) || '';
+  merged.source = pickFieldAndSource('source').value || null;
 
         // languages: union
         const langs = new Set();
@@ -310,26 +329,46 @@ app.get('/search', async (req, res) => {
         }
         merged.languages = Array.from(langs);
 
-  merged.publisher = pickFieldFromSorted('publisher') || '';
-  merged.publishedYear = pickPublishedYear() || undefined;
-  merged.rating = pickFieldFromSorted('rating') || null;
-        // series: gather from any provider (string or array), prefer first non-empty
-        const seriesSet = new Set();
+  merged.publisher = pickFieldAndSource('publisher').value || '';
+  merged.publishedYear = pickPublishedYearAndSource().value || undefined;
+  merged.rating = pickFieldAndSource('rating').value || null;
+        // series: respect preference, else gather from any provider (string or array), prefer first non-empty
+        const seriesPref = prefs && prefs['series'];
+        let chosenSeries = '';
         let seriesIndex = null;
-        for (const it of sortedGroup) {
-          if (Array.isArray(it.series)) for (const s of it.series) seriesSet.add(s);
-          else if (it.series) seriesSet.add(it.series);
-          if (!seriesIndex && (typeof it.seriesIndex !== 'undefined' && it.seriesIndex !== null)) seriesIndex = it.seriesIndex;
+        if (seriesPref) {
+          const p = sortedGroup.find(i => i._provider === seriesPref && (i.series || (Array.isArray(i.series) && i.series.length)));
+          if (p) {
+            if (Array.isArray(p.series)) chosenSeries = p.series[0];
+            else chosenSeries = p.series || '';
+            seriesIndex = typeof p.seriesIndex !== 'undefined' ? p.seriesIndex : null;
+          }
         }
-        const seriesArr = Array.from(seriesSet);
-  merged.series = seriesArr.length ? seriesArr[0] : '';
-  merged.seriesIndex = seriesIndex || null;
+        if (!chosenSeries) {
+          const seriesSet = new Set();
+          for (const it of sortedGroup) {
+            if (Array.isArray(it.series)) for (const s of it.series) if (s) seriesSet.add(s);
+            else if (it.series) seriesSet.add(it.series);
+            if (!seriesIndex && (typeof it.seriesIndex !== 'undefined' && it.seriesIndex !== null)) seriesIndex = it.seriesIndex;
+          }
+          const seriesArr = Array.from(seriesSet);
+          chosenSeries = seriesArr.length ? seriesArr[0] : '';
+        }
+        // Provide series in the same shape provider wrappers use (array of { series, sequence })
+        // This is what Audiobookshelf expects when importing series information.
+        if (chosenSeries) {
+          merged.series = [{ series: chosenSeries, sequence: (seriesIndex !== null && typeof seriesIndex !== 'undefined') ? String(seriesIndex) : undefined }];
+        } else {
+          merged.series = undefined;
+        }
+        // keep legacy seriesIndex field for compatibility
+        merged.seriesIndex = (typeof seriesIndex !== 'undefined' && seriesIndex !== null) ? seriesIndex : null;
 
-  merged.isbn = pickIdentifier('isbn') || undefined;
-  merged.asin = pickIdentifier('asin') || undefined;
-  merged.duration = pickFieldFromSorted('duration') || undefined;
-  merged.url = merged.url || pickFieldFromSorted('url') || undefined;
-  merged.language = pickLanguage() || undefined;
+  const isbnPick = pickIdentifierAndSource('isbn'); merged.isbn = isbnPick.value || undefined;
+  const asinPick = pickIdentifierAndSource('asin'); merged.asin = asinPick.value || undefined;
+  const durationPick = pickFieldAndSource('duration'); merged.duration = durationPick.value || undefined;
+  merged.url = merged.url || '';
+  const languagePick = pickLanguageAndSource(); merged.language = languagePick.value || undefined;
 
         // genres/tags: respect preference, else union and normalize/dedupe
         const normalize = (s) => (s || '').toString().trim().toLowerCase();
@@ -349,13 +388,14 @@ app.get('/search', async (req, res) => {
           return Array.from(set);
         };
 
-        merged.genres = pickListPrefOrUnion('genres');
-        merged.tags = pickListPrefOrUnion('tags');
+  merged.genres = pickListPrefOrUnion('genres');
+  merged.tags = pickListPrefOrUnion('tags');
 
         // record provenance for these merged lists
         merged._mergedFieldSources = merged._mergedFieldSources || {};
-        merged._mergedFieldSources.genres = (prefs && prefs['genres']) ? prefs['genres'] : Array.from(new Set(sortedGroup.filter(i=>i.genres && i.genres.length).map(i=>i._provider)));
-        merged._mergedFieldSources.tags = (prefs && prefs['tags']) ? prefs['tags'] : Array.from(new Set(sortedGroup.filter(i=>i.tags && i.tags.length).map(i=>i._provider)));
+  merged._mergedFieldSources.genres = (prefs && prefs['genres']) ? prefs['genres'] : Array.from(new Set(sortedGroup.filter(i=> (i.genres && i.genres.length) || (typeof i.genres === 'string' && i.genres)).map(i=>i._provider)));
+  merged._mergedFieldSources.tags = (prefs && prefs['tags']) ? prefs['tags'] : Array.from(new Set(sortedGroup.filter(i=> (i.tags && i.tags.length) || (typeof i.tags === 'string' && i.tags)).map(i=>i._provider)));
+  merged._mergedFieldSources.series = (prefs && prefs['series']) ? prefs['series'] : Array.from(new Set(sortedGroup.filter(i=> (i.series && (Array.isArray(i.series) ? i.series.length : !!i.series))).map(i=>i._provider)));
 
         // identifiers: merge keys preferring earlier providers
         const identifiers = {};
@@ -368,7 +408,24 @@ app.get('/search', async (req, res) => {
         }
         merged.identifiers = identifiers;
 
-  merged._mergedFrom = topGroup.map(i => ({ provider: i._provider, id: i.id || i._id || null }));
+        merged._mergedFrom = topGroup.map(i => ({ provider: i._provider, id: i.id || i._id || null }));
+        // provenance for specific single-valued fields
+        merged._mergedFieldSources = merged._mergedFieldSources || {};
+        const singleFields = ['narrator','publisher','language','subtitle','duration','url','source'];
+        for (const f of singleFields) {
+          const pref = prefs && prefs[f];
+          if (pref) {
+            const p = sortedGroup.find(i => i._provider === pref && (i[f] || (f==='language' && i.languages && i.languages.length)));
+            if (p) merged._mergedFieldSources[f] = pref;
+            else {
+              const contributor = sortedGroup.find(i => i[f] || (f==='language' && i.languages && i.languages.length));
+              if (contributor) merged._mergedFieldSources[f] = contributor._provider;
+            }
+          } else {
+            const contributor = sortedGroup.find(i => i[f] || (f==='language' && i.languages && i.languages.length));
+            if (contributor) merged._mergedFieldSources[f] = contributor._provider;
+          }
+        }
         // optional debug logging
         if (config.global && config.global.mergeDebug) {
           try {
@@ -400,6 +457,31 @@ app.get('/search', async (req, res) => {
   } catch (err) {
     console.error('Error during mergeBestResults:', err && err.message ? err.message : err);
   }
+
+  // Normalize author fields for all results so downstream consumers (like Audiobookshelf)
+  // reliably see both `authors` (array) and `author` (string).
+  const normalizeAuthors = (item) => {
+    if (!item) return;
+    // Normalize authors -> array of trimmed names
+    if (Array.isArray(item.authors)) {
+      item.authors = item.authors.map(a => (a || '').toString().trim()).filter(Boolean);
+    } else if (item.author && typeof item.author === 'string') {
+      // split common separators: comma, semicolon, ' and '
+      const parts = item.author.split(/\s*(?:,|;| and )\s*/).map(s => s.trim()).filter(Boolean);
+      item.authors = parts;
+    } else {
+      item.authors = item.authors || [];
+    }
+
+    // Ensure singular author string exists (joined)
+    if (!item.author || typeof item.author !== 'string' || !item.author.trim()) {
+      item.author = item.authors && item.authors.length ? item.authors.join(', ') : undefined;
+    } else {
+      item.author = item.author.trim();
+    }
+  };
+
+  for (const it of fullResults) normalizeAuthors(it);
 
   res.json({ providers: all, matches: fullResults });
 });

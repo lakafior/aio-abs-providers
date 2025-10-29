@@ -6,7 +6,7 @@
       "language": "pl",
       "concurrency": 3,
       "timeoutMs": 10000,
-      "maxResults": 0,
+      "maxResults": 3,
       "extra": {}
     },
     "audioteka": {
@@ -15,7 +15,7 @@
       "language": "pl",
       "concurrency": 4,
       "timeoutMs": 15000,
-      "maxResults": 0,
+      "maxResults": 3,
       "extra": {
         "addLinkToDescription": false
       }
@@ -26,7 +26,7 @@
       "language": "pl",
       "concurrency": 2,
       "timeoutMs": 12000,
-      "maxResults": 0,
+      "maxResults": 2,
       "extra": {
         "preferredRegions": [
           "pl"
@@ -43,11 +43,25 @@
     "mergeBestResults": true,
     "mergePreferences": {
       "title": "lubimyczytac",
+      "subtitle": "lubimyczytac",
       "authors": "lubimyczytac",
       "narrator": "audioteka",
       "description": "lubimyczytac",
       "cover": "audioteka",
-      "series": "lubimyczytac"
+      "isbn": "lubimyczytac",
+      "asin": "lubimyczytac",
+      "duration": "audioteka",
+      "publishedYear": "lubimyczytac",
+      "rating": "lubimyczytac",
+      "url": "lubimyczytac",
+      "source": "lubimyczytac",
+      "identifiers": "lubimyczytac",
+      "publisher": "audioteka",
+      "series": "lubimyczytac",
+      "seriesIndex": "lubimyczytac",
+      "language": "lubimyczytac",
+      "genres": "lubimyczytac",
+      "tags": null
     }
   }
 }
