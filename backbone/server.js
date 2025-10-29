@@ -89,6 +89,15 @@ app.get('/search', async (req, res) => {
     }
   }
 
+  // Log provider snippet counts (minimal but informative)
+  try {
+    const providerSnippetCounts = {};
+    for (const a of all) {
+      providerSnippetCounts[a.provider] = (a.matches && a.matches.length) || 0;
+    }
+    console.log('[search] provider snippets:', JSON.stringify(providerSnippetCounts));
+  } catch (e) { /* ignore logging errors */ }
+
   // Compute unified similarity for each match across all providers.
   // Strategy: compare match.title to query (case-insensitive) for titleSimilarity.
   // If author provided, compute best author similarity across match.authors and combine: 0.6*title + 0.4*author.
@@ -154,6 +163,18 @@ app.get('/search', async (req, res) => {
     (acc[m._provider] = acc[m._provider] || []).push(m);
     return acc;
   }, {});
+
+  // Log candidate counts and planned full-metadata fetches
+  try {
+    const candidateCounts = {};
+    let plannedFetches = 0;
+    for (const [prov, arr] of Object.entries(byProvider)) {
+      candidateCounts[prov] = arr.length;
+      // we'll fetch only those without _fullFetched
+      plannedFetches += arr.filter(i => !i._fullFetched).length;
+    }
+    console.log('[search] candidates:', JSON.stringify(candidateCounts), 'plannedFullFetches=', plannedFetches);
+  } catch (e) { /* ignore logging errors */ }
 
   // For each provider, fetch full metadata for its candidates
   const fullFetchPromises = Object.entries(byProvider).map(async ([providerName, matches]) => {
@@ -453,6 +474,14 @@ app.get('/search', async (req, res) => {
             console.log('mergeBestResults merged:', merged);
           } catch (e) { /* ignore logging errors */ }
         }
+        // concise provenance log for regular ops (always useful)
+        try {
+          if (merged && merged._mergedFieldSources) {
+            console.log('[merge] merged from providers:', Array.from(new Set(topGroup.map(i=>i._provider))).join(','), 'fieldSources=', JSON.stringify(merged._mergedFieldSources));
+          } else {
+            console.log('[merge] merged from providers:', Array.from(new Set(topGroup.map(i=>i._provider))).join(','));
+          }
+        } catch (e) { /* ignore logging errors */ }
   // mark this synthetic result so frontends can easily identify it
   merged._provider = 'merged';
   // give merged a priority slightly above the highest provider in the group
