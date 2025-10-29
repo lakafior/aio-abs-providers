@@ -1,6 +1,6 @@
 # aio-abs-providers
 
-> Warning! It's in really early stages of development, test it but expect bugs!
+> ⚠️ Warning! It's in really early stages of development, test it but expect bugs!
 
 Lightweight aggregator ("Backbone") for audiobook providers.  
 Searches multiple providers (lubimyczytac, audioteka, storytel, ...) and returns ranked results, with optional merging of best matches and controlled detail-page fetches to minimize load on upstream sites.
@@ -8,6 +8,8 @@ Searches multiple providers (lubimyczytac, audioteka, storytel, ...) and returns
 ---
 
 ## Quick overview
+
+> You can search besides abs on `http://<host>:4000/search-ui`
 
 <img width="1451" height="805" alt="image" src="https://github.com/user-attachments/assets/bd8969bf-be22-4d42-81c0-ba438f03f5a8" />
 
