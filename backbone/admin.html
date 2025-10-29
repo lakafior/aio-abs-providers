@@ -31,6 +31,14 @@
     <label>maxProvidersParallel:</label>
     <input id="global_maxProvidersParallel" type="number" min="1" value="3" />
   </div>
+  <div>
+    <label>Allow Books:</label>
+    <input id="global_allowBooks" type="checkbox" />
+  </div>
+  <div>
+    <label>Allow Audiobooks:</label>
+    <input id="global_allowAudiobooks" type="checkbox" />
+  </div>
 
   <div class="controls">
     <button id="reload">Reload</button>
@@ -148,7 +156,7 @@
         const node = renderProvider(name, p, providerMeta.supportedLanguages || []);
         container.appendChild(node);
       }
-      document.getElementById('global_maxProvidersParallel').value = (cfg.global && cfg.global.maxProvidersParallel) || 3;
+      renderGlobal(cfg || {});
     }
 
     async function loadAndRender() {
@@ -163,6 +171,12 @@
         // ignore
       }
       if (cfg) renderConfig(cfg, meta);
+    }
+
+    function renderGlobal(cfg) {
+      document.getElementById('global_maxProvidersParallel').value = (cfg.global && cfg.global.maxProvidersParallel) || 3;
+      document.getElementById('global_allowBooks').checked = (cfg.global && typeof cfg.global.allowBooks !== 'undefined') ? !!cfg.global.allowBooks : true;
+      document.getElementById('global_allowAudiobooks').checked = (cfg.global && typeof cfg.global.allowAudiobooks !== 'undefined') ? !!cfg.global.allowAudiobooks : true;
     }
 
     document.getElementById('reload').addEventListener('click', loadAndRender);
@@ -194,7 +208,9 @@
 
         newCfg.providers[name] = { enabled, priority, language, concurrency, timeoutMs, extra };
       }
-      newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
+  newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
+  newCfg.global.allowBooks = !!document.getElementById('global_allowBooks').checked;
+  newCfg.global.allowAudiobooks = !!document.getElementById('global_allowAudiobooks').checked;
 
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = 'Bearer ' + authToken;

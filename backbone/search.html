@@ -9,12 +9,15 @@
     input[type=text] { width: 320px; }
     button { margin-left: 6px; }
     .result { border: 1px solid #ddd; padding: 8px; margin: 8px 0; display: flex; gap: 12px; }
-  .cover { width: 120px; height: 180px; object-fit: cover; background: #f6f6f6; border: 1px solid #eee; display: block; }
+  .cover { width: 120px; height: 120px; background: #f6f6f6; border: 1px solid #eee; display: block; }
   .result { position: relative; }
-  .cover-container { position: relative; width: 120px; height: 180px; flex: 0 0 120px; }
+  .cover-container { position: relative; width: 120px; height: 120px; flex: 0 0 120px; }
   .badge { position: absolute; left: 6px; top: 6px; background: rgba(0,0,0,0.7); color: #fff; padding: 2px 6px; font-size: 11px; border-radius: 3px; }
-  .cover.audiobook { border-color: #2b8aef; box-shadow: 0 0 0 3px rgba(43,138,239,0.06); }
-  .cover.book { border-color: #777; opacity: 0.95; }
+  /* Audiobook covers are square and should be shown fully (contain) */
+  .cover.audiobook { border-color: #2b8aef; box-shadow: 0 0 0 3px rgba(43,138,239,0.06); object-fit: contain; width: 120px; height: 120px; }
+  /* Book covers are rectangular; allow a taller rectangle */
+  .cover.book { border-color: #777; opacity: 0.95; object-fit: cover; width: 120px; height: 180px; }
+  .cover.book + .badge { top: 8px; }
     .meta { flex: 1; }
     .providersrc { font-size: 0.9rem; color: #666; }
     pre.json { background: #f7f7f7; padding: 8px; border-radius: 4px; overflow: auto; max-height: 300px; }

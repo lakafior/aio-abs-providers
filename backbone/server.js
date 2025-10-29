@@ -89,8 +89,19 @@ app.get('/search', async (req, res) => {
     return { ...m, similarity: combinedSimilarity };
   });
 
+  // Apply global allowBooks/allowAudiobooks filters from config
+  const allowBooks = config.global && typeof config.global.allowBooks !== 'undefined' ? !!config.global.allowBooks : true;
+  const allowAudiobooks = config.global && typeof config.global.allowAudiobooks !== 'undefined' ? !!config.global.allowAudiobooks : true;
+
+  const filtered = scored.filter(m => {
+    const isAudio = (m.type === 'audiobook' || (m.format && m.format === 'audiobook')) ? true : false;
+    if (isAudio && !allowAudiobooks) return false;
+    if (!isAudio && !allowBooks) return false;
+    return true;
+  });
+
   // Sort by similarity desc; on equal similarity, prefer audiobooks over books
-  scored.sort((a, b) => {
+  filtered.sort((a, b) => {
     if (b.similarity !== a.similarity) return b.similarity - a.similarity;
     const aIsAudio = (a.type === 'audiobook' || (a.format && a.format === 'audiobook')) ? 1 : 0;
     const bIsAudio = (b.type === 'audiobook' || (b.format && b.format === 'audiobook')) ? 1 : 0;
@@ -101,7 +112,7 @@ app.get('/search', async (req, res) => {
     return bPriority - aPriority;
   });
 
-  res.json({ providers: all, matches: scored });
+  res.json({ providers: all, matches: filtered });
 });
 
 // Admin endpoints for config. If ADMIN_TOKEN is set, require Bearer token; otherwise allow (LAN internal use).

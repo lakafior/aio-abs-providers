@@ -32,6 +32,8 @@
     }
   },
   "global": {
-    "maxProvidersParallel": 3
+    "maxProvidersParallel": 3,
+    "allowBooks": true,
+    "allowAudiobooks": true
   }
 }
