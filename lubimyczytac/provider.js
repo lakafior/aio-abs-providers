@@ -222,13 +222,31 @@ class LubimyCzytacProvider {
 
   extractPages($) {
     try {
-      const pagesText = $('script[type="application/ld+json"]').text();
-      if (pagesText) {
-        const data = JSON.parse(pagesText);
-        return data.numberOfPages || null;
+      const scripts = $('script[type="application/ld+json"]');
+      for (let i = 0; i < scripts.length; i++) {
+        const txt = $(scripts[i]).text();
+        if (!txt) continue;
+        try {
+          const data = JSON.parse(txt);
+          if (data && (data.numberOfPages || data.numberOfPages === 0)) return data.numberOfPages;
+          // some pages have nested objects
+          if (data && data['@graph']) {
+            for (const node of data['@graph']) {
+              if (node.numberOfPages) return node.numberOfPages;
+            }
+          }
+        } catch (err) {
+          // ignore parse error for this script and continue
+          continue;
+        }
       }
+
+      // fallback: try to extract via regex from the page body
+      const bodyText = $.root().text();
+      const match = bodyText.match(/(\d{1,4})\s+stron/i);
+      if (match) return parseInt(match[1], 10);
     } catch (error) {
-      console.error('Error parsing JSON for pages:', error.message);
+      console.error('Error extracting pages:', error && error.message ? error.message : error);
     }
     return null;
   }

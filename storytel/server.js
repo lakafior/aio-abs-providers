@@ -26,8 +26,8 @@ const validateRegion = (req, res, next) => {
     next();
 };
 
-// Original search endpoint
-app.get('/:region/search', checkAuth, validateRegion, async (req, res) => {
+// All media (books + audiobooks)
+app.get('/:region', checkAuth, validateRegion, async (req, res) => {
     const { query = '', author = '' } = req.query;
     const region = req.params.region;
 
@@ -45,7 +45,7 @@ app.get('/:region/search', checkAuth, validateRegion, async (req, res) => {
 });
 
 // E-Book search endpoint
-app.get('/:region/book/search', checkAuth, validateRegion, async (req, res) => {
+app.get('/:region/book', checkAuth, validateRegion, async (req, res) => {
     const { query = '', author = '' } = req.query;
     const region = req.params.region;
 
@@ -69,7 +69,7 @@ app.get('/:region/book/search', checkAuth, validateRegion, async (req, res) => {
 });
 
 // Audiobook search endpoint
-app.get('/:region/audiobook/search', checkAuth, validateRegion, async (req, res) => {
+app.get('/:region/audiobook', checkAuth, validateRegion, async (req, res) => {
     const { query = '', author = '' } = req.query;
     const region = req.params.region;
 

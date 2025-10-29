@@ -26,9 +26,7 @@
       "timeoutMs": 12000,
       "extra": {
         "preferredRegions": [
-          "en",
-          "pl",
-          "cz"
+          "pl"
         ]
       }
     }

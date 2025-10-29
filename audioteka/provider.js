@@ -76,7 +76,11 @@ class AudiotekaProvider {
         const title = $book.find('.teaser_title__hDeCG').text().trim();
         const bookUrl = this.baseUrl + $book.find('.teaser_link__fxVFQ').attr('href');
         const authors = [$book.find('.teaser_author__LWTRi').text().trim()];
-        const cover = cleanCoverUrl($book.find('.teaser_coverImage__YMrBt').attr('src'));
+  // try common lazy-load attributes and fallbacks for cover
+  const teaserImg = $book.find('.teaser_coverImage__YMrBt');
+  const coverSrc = teaserImg.attr('data-src') || teaserImg.attr('data-srcset') || teaserImg.attr('src') || teaserImg.find('source').attr('srcset');
+  const coverUrl = coverSrc ? (typeof coverSrc === 'string' ? coverSrc.split(',')[0].trim().split(' ')[0] : coverSrc) : null;
+  const cover = cleanCoverUrl(coverUrl || '');
         const rating = parseFloat($book.find('.teaser-footer_rating__TeVOA').text().trim()) || null;
 
         const id = $book.attr('data-item-id') || bookUrl.split('/').pop();
@@ -135,8 +139,8 @@ class AudiotekaProvider {
       const response = await axios.get(match.url);
       const $ = cheerio.load(response.data);
 
-      let narrators = '';
-  if (this.language === 'cz') {
+    let narrators = '';
+    if (this.language === 'cz') {
         let narratorCell = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Interpret' || text === 'Čte';
@@ -205,8 +209,8 @@ class AudiotekaProvider {
         }
       }
 
-      let durationStr = '';
-      if (language === 'cz') {
+  let durationStr = '';
+  if (this.language === 'cz') {
         durationStr = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Délka' || text === 'Stopáž';
@@ -233,8 +237,8 @@ class AudiotekaProvider {
 
       const durationInMinutes = parseDuration(durationStr);
 
-      let publisher = '';
-      if (language === 'cz') {
+  let publisher = '';
+  if (this.language === 'cz') {
         publisher = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Vydavatel' || text === 'Nakladatel';
@@ -260,8 +264,8 @@ class AudiotekaProvider {
                     $('.product-table tr:contains("Wydawca") td:last-child').text().trim();
       }
 
-      let type = '';
-      if (language === 'cz') {
+  let type = '';
+  if (this.language === 'cz') {
         type = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Typ';
@@ -285,8 +289,8 @@ class AudiotekaProvider {
         type = $('.product-table tr:contains("Typ") td:last-child').text().trim();
       }
 
-      let genres = [];
-      if (language === 'cz') {
+  let genres = [];
+  if (this.language === 'cz') {
         genres = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Kategorie' || text === 'Žánr';
@@ -319,7 +323,7 @@ class AudiotekaProvider {
           .get();
       }
 
-      const bookLanguage = language === 'cz' ? (() => {
+  const bookLanguage = this.language === 'cz' ? (() => {
         let lang = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Jazyk';
@@ -343,7 +347,7 @@ class AudiotekaProvider {
         return lang;
       })() : null;
 
-      if (language === 'cz' && bookLanguage && !bookLanguage.toLowerCase().includes('čeština')) {
+  if (this.language === 'cz' && bookLanguage && !bookLanguage.toLowerCase().includes('čeština')) {
         return null;
       }
 

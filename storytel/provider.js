@@ -256,8 +256,9 @@ class StorytelProvider {
      * @returns {Promise<{matches: *[]}>}
      */
     async searchBooks(query, author = '', locale) {
-        const cleanQuery = query.split(':')[0].trim();
-        const formattedQuery = cleanQuery.replace(/\s+/g, '+');
+        const usedLocale = locale || this.locale || 'en';
+    const cleanQuery = query.split(':')[0].trim();
+    const formattedQuery = cleanQuery; // keep original spacing - API accepts normal query strings
 
         const cacheKey = `${formattedQuery}-${author}-${locale}`;
 
@@ -269,26 +270,52 @@ class StorytelProvider {
         try {
             const searchResponse = await axios.get(this.baseSearchUrl, {
                 params: {
-                    request_locale: locale,
+                    request_locale: usedLocale,
                     q: formattedQuery
                 },
                 headers: {
-                    'User-Agent': 'Storytel ABS-Scraper'
-                }
+                    // mimic a common browser UA and include referer/accept-language
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+                    'Accept-Language': usedLocale === 'pl' ? 'pl-PL,pl;q=0.9' : (usedLocale === 'cz' ? 'cs-CZ,cs;q=0.9' : 'en-US,en;q=0.9'),
+                    'Referer': 'https://www.storytel.com/',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                validateStatus: status => status < 500 // let us handle 403 gracefully
             });
 
-            if (!searchResponse.data || !searchResponse.data.books) {
-                return { matches: [] };
-            }
+                        const data = searchResponse.data || {};
 
-            const books = searchResponse.data.books.slice(0, 5);
+                        // Try multiple possible fields where Storytel might return search items
+                        let books = null;
+                        if (Array.isArray(data.books)) books = data.books;
+                        else if (Array.isArray(data.results)) books = data.results;
+                        else if (Array.isArray(data.items)) books = data.items;
+                        else if (Array.isArray(data.hits)) books = data.hits;
+
+                        // Some responses wrap objects differently; attempt to locate an array of book-like objects
+                        if (!books) {
+                            for (const k of Object.keys(data)) {
+                                if (Array.isArray(data[k]) && data[k].length > 0 && (data[k][0].book || data[k][0].id || data[k][0].bookId)) {
+                                    books = data[k];
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!books || books.length === 0) {
+                                console.debug('Storytel search: no books found; response keys=', Object.keys(data));
+                                return { matches: [] };
+                        }
+
+                        const limitedBooks = books.slice(0, 10);
             console.log(`Found ${books.length} books in search results`);
 
-            const matches = await Promise.all(books.map(async book => {
-                if (!book.book || !book.book.id) return null;
-                const bookDetails = await this.getBookDetails(book.book.id, locale);
+            const matches = await Promise.all(limitedBooks.map(async bookItem => {
+                const candidate = bookItem.book || bookItem;
+                const bookId = candidate && (candidate.id || candidate.bookId || candidate.book_id || candidate.bookID);
+                if (!bookId) return null;
+                const bookDetails = await this.getBookDetails(bookId, usedLocale);
                 if (!bookDetails) return null;
-
                 return this.formatBookMetadata(bookDetails);
             }));
 
@@ -298,7 +325,8 @@ class StorytelProvider {
             cache.set(cacheKey, result);
             return result;
         } catch (error) {
-            console.error('Error searching books:', error.message);
+            // Storytel often returns 403 when blocked; fail gracefully and return no matches
+            console.error('Error searching books:', error && error.message || error);
             return { matches: [] };
         }
     }
