@@ -49,6 +49,10 @@
     <input id="global_similarityThreshold" type="range" min="0" max="100" value="30" />
     <span id="similarityThresholdLabel">>= 30%</span>
   </div>
+  <div style="margin-top:8px">
+    <label>Merge best results:</label>
+    <input id="global_mergeBestResults" type="checkbox" />
+  </div>
 
   <div class="controls">
     <button id="reload">Reload</button>
@@ -193,6 +197,7 @@
       document.getElementById('titleWeightLabel').textContent = `Title ${document.getElementById('global_titleWeight').value}% / Author ${100 - document.getElementById('global_titleWeight').value}%`;
       document.getElementById('global_similarityThreshold').value = (cfg.global && typeof cfg.global.similarityThreshold === 'number') ? cfg.global.similarityThreshold : 30;
       document.getElementById('similarityThresholdLabel').textContent = `>= ${document.getElementById('global_similarityThreshold').value}%`;
+    document.getElementById('global_mergeBestResults').checked = !!(cfg.global && cfg.global.mergeBestResults);
     }
 
     document.getElementById('reload').addEventListener('click', loadAndRender);
@@ -230,6 +235,7 @@
   newCfg.global.allowAudiobooks = !!document.getElementById('global_allowAudiobooks').checked;
   newCfg.global.titleWeight = parseInt(document.getElementById('global_titleWeight').value, 10) || 60;
   newCfg.global.similarityThreshold = parseInt(document.getElementById('global_similarityThreshold').value, 10) || 30;
+  newCfg.global.mergeBestResults = !!document.getElementById('global_mergeBestResults').checked;
 
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
@@ -245,7 +251,17 @@
       // reload config from server response if provided
       if (body && body.config) {
         currentConfig = body.config;
-        renderConfig(currentConfig);
+        // fetch provider metadata and re-render so language selects stay provider-specific
+        try {
+          const headers = {};
+          if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+          const rmeta = await fetch('/admin/providers/meta', { headers });
+          let meta = [];
+          if (rmeta.ok) meta = await rmeta.json();
+          renderConfig(currentConfig, meta);
+        } catch (e) {
+          renderConfig(currentConfig);
+        }
       } else {
         // fallback: re-fetch
         await loadAndRender();

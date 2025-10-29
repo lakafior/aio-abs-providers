@@ -201,6 +201,54 @@ app.get('/search', async (req, res) => {
     return bPriority - aPriority;
   });
 
+  // Optionally create a merged "best result" at the top that combines fields from top-equal items
+  try {
+    const mergeEnabled = config.global && !!config.global.mergeBestResults;
+    if (mergeEnabled && fullResults && fullResults.length) {
+      // find top similarity value
+      const topSim = fullResults[0].similarity || 0;
+      // allow tiny epsilon
+      const EPS = 1e-6;
+      const topGroup = fullResults.filter(fr => Math.abs((fr.similarity || 0) - topSim) <= EPS);
+      if (topGroup.length > 1) {
+        // Build merged result by preferring non-empty fields from the group in this order:
+        // - prefer items that are 'book' (rectangle) for cover
+        // - otherwise use first non-empty value among the group ordered by similarity then provider priority
+        const pickField = (field) => {
+          for (const item of topGroup) {
+            if (item[field]) return item[field];
+          }
+          return undefined;
+        };
+
+  // pick cover: prefer audiobook (square) covers when available, otherwise fall back to any available cover
+  let cover = null;
+  const audioCandidate = topGroup.find(i => (i.type === 'audiobook' || (i.format && i.format === 'audiobook')) && i.cover);
+  if (audioCandidate) cover = audioCandidate.cover;
+  if (!cover) cover = pickField('cover') || pickField('image') || null;
+
+        // merged object: copy a set of common fields
+        const merged = {};
+        merged.title = pickField('title') || '';
+        merged.authors = pickField('authors') || [];
+        merged.narrator = pickField('narrator') || pickField('lector') || '';
+        merged.description = pickField('description') || pickField('summary') || '';
+        merged.cover = cover;
+        merged.type = pickField('type') || pickField('format') || (topGroup.some(i => i.type === 'audiobook') ? 'audiobook' : 'book');
+        merged.similarity = topSim;
+        merged._mergedFrom = topGroup.map(i => ({ provider: i._provider, id: i.id || i._id || null }));
+
+        // Insert merged at the top if not duplicating an existing identical top item
+        const topIsSame = fullResults[0].title === merged.title && fullResults[0].authors && merged.authors && fullResults[0].authors.join('|') === merged.authors.join('|');
+        if (!topIsSame) {
+          fullResults.unshift(merged);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error during mergeBestResults:', err && err.message ? err.message : err);
+  }
+
   res.json({ providers: all, matches: fullResults });
 });
 

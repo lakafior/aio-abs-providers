@@ -30,6 +30,7 @@
         "allowAudiobooks": { "type": "boolean", "default": true }
         ,"titleWeight": { "type": "integer", "minimum": 0, "maximum": 100, "default": 60 }
         ,"similarityThreshold": { "type": "integer", "minimum": 0, "maximum": 100, "default": 30 }
+        ,"mergeBestResults": { "type": "boolean", "default": false }
       },
       "additionalProperties": false
     }
