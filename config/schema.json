@@ -10,6 +10,7 @@
           "properties": {
             "enabled": { "type": "boolean" },
               "priority": { "type": "integer", "minimum": 0, "default": 0 },
+              "maxResults": { "type": "integer", "minimum": 0, "default": 0 },
             "language": { "type": "string" },
             "concurrency": { "type": "integer", "minimum": 1 },
             "timeoutMs": { "type": "integer", "minimum": 100, "default": 10000 },

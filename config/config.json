@@ -15,7 +15,7 @@
       "concurrency": 4,
       "timeoutMs": 15000,
       "extra": {
-        "addLinkToDescription": true
+        "addLinkToDescription": false
       }
     },
     "storytel": {
@@ -35,6 +35,7 @@
     "maxProvidersParallel": 3,
     "allowBooks": true,
     "allowAudiobooks": true,
-    "titleWeight": 60
+    "titleWeight": 60,
+    "similarityThreshold": 75
   }
 }

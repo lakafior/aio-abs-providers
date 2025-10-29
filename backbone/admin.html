@@ -125,6 +125,7 @@
       const language = makeLanguageSelect(cfg.language || '', supported);
       const priority = document.createElement('input'); priority.type = 'number'; priority.min = 0; priority.dataset.key = 'priority'; priority.value = (typeof cfg.priority === 'number') ? cfg.priority : 0;
       const concurrency = document.createElement('input'); concurrency.type = 'number'; concurrency.min = 1; concurrency.dataset.key = 'concurrency'; concurrency.value = cfg.concurrency || 1;
+  const maxResults = document.createElement('input'); maxResults.type = 'number'; maxResults.min = 0; maxResults.dataset.key = 'maxResults'; maxResults.value = (typeof cfg.maxResults === 'number') ? cfg.maxResults : (cfg.maxResults || 0);
       const timeout = document.createElement('input'); timeout.type = 'number'; timeout.min = 100; timeout.dataset.key = 'timeoutMs'; timeout.value = cfg.timeoutMs || 10000;
 
       // Extras: provider-specific typed inputs when possible
@@ -148,6 +149,7 @@
       row('Enabled: ', enabled);
       row('Language: ', language);
       row('Concurrency: ', concurrency);
+  row('Max results (0 = unlimited): ', maxResults);
       row('TimeoutMs: ', timeout);
       row('Priority: ', priority);
       row('Extras: ', extrasNode);
@@ -220,7 +222,8 @@
           try { extra = JSON.parse(ta); } catch (e) { setStatus('Invalid JSON in extras for ' + name, true); return; }
         }
 
-        newCfg.providers[name] = { enabled, priority, language, concurrency, timeoutMs, extra };
+        const maxResultsVal = parseInt(child.querySelector('[data-key="maxResults"]').value, 10) || 0;
+        newCfg.providers[name] = { enabled, priority, language, concurrency, timeoutMs, maxResults: maxResultsVal, extra };
       }
   newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
   newCfg.global.allowBooks = !!document.getElementById('global_allowBooks').checked;
