@@ -5,6 +5,9 @@
 Lightweight aggregator ("Backbone") for audiobook providers.  
 Searches multiple providers (lubimyczytac, audioteka, storytel, ...) and returns ranked results, with optional merging of best matches and controlled detail-page fetches to minimize load on upstream sites.
 
+<img width="808" height="246" alt="image" src="https://github.com/user-attachments/assets/2f91ab4a-c21b-4025-95bb-e592db162752" />
+
+
 ---
 
 ## Quick overview
