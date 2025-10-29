@@ -589,6 +589,24 @@ app.get('/search', async (req, res) => {
     // do not auto-fill `publisher` from provider site description
   }
 
+  // Compatibility: some downstream consumers (older Audiobookshelf importers / plugins)
+  // expect a flat `published` or `published_date` field. Keep them populated so imports
+  // don't silently drop the year/date when they only look for these names.
+  for (const it of fullResults) {
+    // `published` - prefer explicit publishedYear (string), else derive from publishedDate
+    if (!it.published) {
+      if (it.publishedYear) it.published = it.publishedYear;
+      else if (it.publishedDate) {
+        try {
+          const y = new Date(it.publishedDate).getFullYear();
+          if (y && !Number.isNaN(y)) it.published = y.toString();
+        } catch (e) { /* ignore invalid dates */ }
+      }
+    }
+    // `published_date` - expose full ISO-like date if available
+    if (!it.published_date && it.publishedDate) it.published_date = it.publishedDate;
+  }
+
   res.json({ providers: all, matches: fullResults });
 });
 
