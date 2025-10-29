@@ -37,20 +37,21 @@ function parseDuration(durationStr) {
   return (hours * 60) + minutes;
 }
 
-const language = process.env.LANGUAGE || 'pl';
-const addAudiotekaLinkToDescription = (process.env.ADD_AUDIOTEKA_LINK_TO_DESCRIPTION || 'true').toLowerCase() === 'true';
 const DEFAULT_METADATA_CONCURRENCY = 5;
-const metadataConcurrency = (() => {
-  const v = parseInt(process.env.METADATA_CONCURRENCY, 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_METADATA_CONCURRENCY;
-})();
 
 class AudiotekaProvider {
-  constructor() {
+  constructor(options = {}) {
     this.id = 'audioteka';
     this.name = 'Audioteka';
     this.baseUrl = 'https://audioteka.com';
-    this.searchUrl = language === 'cz' ? 'https://audioteka.com/cz/vyhledavani' : 'https://audioteka.com/pl/szukaj';
+    this.opts = options || {};
+    this.language = this.opts.language || process.env.LANGUAGE || 'pl';
+    this.addAudiotekaLinkToDescription = (this.opts.extra && this.opts.extra.addLinkToDescription) || ((process.env.ADD_AUDIOTEKA_LINK_TO_DESCRIPTION || 'true').toLowerCase() === 'true');
+    this.metadataConcurrency = (this.opts.concurrency && Number.isFinite(this.opts.concurrency)) ? this.opts.concurrency : (() => {
+      const v = parseInt(process.env.METADATA_CONCURRENCY, 10);
+      return Number.isFinite(v) && v > 0 ? v : DEFAULT_METADATA_CONCURRENCY;
+    })();
+    this.searchUrl = this.language === 'cz' ? 'https://audioteka.com/cz/vyhledavani' : 'https://audioteka.com/pl/szukaj';
   }
 
   async searchBooks(query, author = '', requestId = 'req') {
@@ -61,7 +62,7 @@ class AudiotekaProvider {
       const response = await axios.get(searchUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept-Language': language === 'cz' ? 'cs-CZ' : 'pl-PL'
+          'Accept-Language': this.language === 'cz' ? 'cs-CZ' : 'pl-PL'
         }
       });
       const $ = cheerio.load(response.data);
@@ -97,7 +98,7 @@ class AudiotekaProvider {
         }
       });
 
-      const fullMetadata = await this.mapWithConcurrency(matches, match => this.getFullMetadata(match, requestId), metadataConcurrency);
+  const fullMetadata = await this.mapWithConcurrency(matches, match => this.getFullMetadata(match, requestId), this.metadataConcurrency);
       const filteredMetadata = fullMetadata.filter(book => book !== null);
 
       return { matches: filteredMetadata };
@@ -135,7 +136,7 @@ class AudiotekaProvider {
       const $ = cheerio.load(response.data);
 
       let narrators = '';
-      if (language === 'cz') {
+  if (this.language === 'cz') {
         let narratorCell = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Interpret' || text === 'Čte';
@@ -362,14 +363,14 @@ class AudiotekaProvider {
         : '';
 
       let description = sanitizedDescription;
-      if (addAudiotekaLinkToDescription) {
+      if (this.addAudiotekaLinkToDescription) {
         const audioTekaLink = `<a href="${match.url}">Audioteka link</a>`;
         description = `${audioTekaLink}<br><br>${sanitizedDescription}`;
       }
 
       const cover = cleanCoverUrl($('.product-top_cover__Pth8B, .product-cover img, .book-cover img, .product-image img').attr('src') || match.cover);
 
-      const languages = language === 'cz' 
+      const languages = this.language === 'cz' 
         ? ['czech'] 
         : ['polish'];
 

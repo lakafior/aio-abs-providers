@@ -4,10 +4,14 @@ const stringSimilarity = require('string-similarity');
 const NodeCache = require('node-cache');
 
 class LubimyCzytacProvider {
-  constructor() {
+  constructor(options = {}) {
     this.id = 'lubimyczytac';
     this.name = 'Lubimy Czytać';
     this.baseUrl = 'https://lubimyczytac.pl';
+    this.opts = options || {};
+    this.language = this.opts.language || 'pl';
+    this.concurrency = this.opts.concurrency || 3;
+    this.timeoutMs = this.opts.timeoutMs || 10000;
     this.textDecoder = new TextDecoder('utf-8');
     this.cache = new NodeCache({ stdTTL: 600 });
   }

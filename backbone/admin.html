@@ -1,0 +1,174 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Backbone Config Editor</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 1rem; }
+    .provider { border: 1px solid #ccc; padding: 0.5rem; margin-bottom: 0.5rem; }
+    label { display: inline-block; width: 150px; }
+    input[type="text"], select { width: 200px; }
+    .controls { margin-top: 1rem; }
+    button { margin-right: 0.5rem; }
+    #status { margin-left: 1rem; color: green; }
+  </style>
+</head>
+<body>
+  <h1>Backbone Config Editor</h1>
+  <p>LAN UI — if ADMIN_TOKEN is set on server, enter it below to authenticate.</p>
+
+  <div>
+    <label>Admin token (optional):</label>
+    <input id="token" type="text" placeholder="Bearer token for admin" />
+    <button id="applyToken">Apply</button>
+    <span id="tokenStatus"></span>
+  </div>
+
+  <div id="providers"></div>
+
+  <h3>Global</h3>
+  <div>
+    <label>maxProvidersParallel:</label>
+    <input id="global_maxProvidersParallel" type="number" min="1" value="3" />
+  </div>
+
+  <div class="controls">
+    <button id="reload">Reload</button>
+    <button id="save">Save</button>
+    <span id="status"></span>
+  </div>
+
+  <script>
+    let currentConfig = null;
+    let authToken = '';
+
+    function setStatus(msg, isError = false) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.style.color = isError ? 'red' : 'green';
+    }
+
+    function setTokenStatus(msg, isError = false) {
+      const el = document.getElementById('tokenStatus');
+      el.textContent = msg;
+      el.style.color = isError ? 'red' : 'green';
+    }
+
+    document.getElementById('applyToken').addEventListener('click', () => {
+      authToken = document.getElementById('token').value.trim();
+      setTokenStatus(authToken ? 'Token applied' : 'No token');
+    });
+
+    async function fetchConfig() {
+      setStatus('Loading...');
+      const headers = {};
+      if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+      const res = await fetch('/admin/config', { headers });
+      if (!res.ok) {
+        setStatus('Failed to load config: ' + res.statusText, true);
+        return null;
+      }
+      const cfg = await res.json();
+      setStatus('Loaded');
+      return cfg;
+    }
+
+    function renderProvider(name, cfg) {
+      const div = document.createElement('div');
+      div.className = 'provider';
+      div.dataset.name = name;
+
+      const enabled = document.createElement('input');
+      enabled.type = 'checkbox';
+      enabled.checked = !!cfg.enabled;
+
+      const language = document.createElement('input');
+      language.type = 'text';
+      language.value = cfg.language || '';
+
+    const priority = document.createElement('input');
+    priority.type = 'number';
+    priority.min = 0;
+    priority.value = (typeof cfg.priority === 'number') ? cfg.priority : 0;
+
+      const concurrency = document.createElement('input');
+      concurrency.type = 'number';
+      concurrency.min = 1;
+      concurrency.value = cfg.concurrency || 1;
+
+      const timeout = document.createElement('input');
+      timeout.type = 'number';
+      timeout.min = 100;
+      timeout.value = cfg.timeoutMs || 10000;
+
+      const extras = document.createElement('textarea');
+      extras.rows = 3;
+      extras.cols = 40;
+      extras.value = JSON.stringify(cfg.extra || {}, null, 2);
+
+      div.innerHTML = `<h4>${name}</h4>`;
+      const form = document.createElement('div');
+      form.appendChild(document.createTextNode('Enabled: ')); form.appendChild(enabled); form.appendChild(document.createElement('br'));
+      form.appendChild(document.createTextNode('Language: ')); form.appendChild(language); form.appendChild(document.createElement('br'));
+      form.appendChild(document.createTextNode('Concurrency: ')); form.appendChild(concurrency); form.appendChild(document.createElement('br'));
+  form.appendChild(document.createTextNode('TimeoutMs: ')); form.appendChild(timeout); form.appendChild(document.createElement('br'));
+  form.appendChild(document.createTextNode('Priority: ')); form.appendChild(priority); form.appendChild(document.createElement('br'));
+  form.appendChild(document.createTextNode('Extras (JSON): ')); form.appendChild(extras); form.appendChild(document.createElement('br'));
+
+      div.appendChild(form);
+
+      return div;
+    }
+
+    function renderConfig(cfg) {
+      currentConfig = cfg;
+      const container = document.getElementById('providers');
+      container.innerHTML = '';
+      for (const [name, p] of Object.entries(cfg.providers || {})) {
+        const node = renderProvider(name, p);
+        container.appendChild(node);
+      }
+      document.getElementById('global_maxProvidersParallel').value = (cfg.global && cfg.global.maxProvidersParallel) || 3;
+    }
+
+    async function loadAndRender() {
+      const cfg = await fetchConfig();
+      if (cfg) renderConfig(cfg);
+    }
+
+    document.getElementById('reload').addEventListener('click', loadAndRender);
+
+    document.getElementById('save').addEventListener('click', async () => {
+      if (!currentConfig) return setStatus('No config loaded', true);
+      const newCfg = { providers: {}, global: {} };
+      const container = document.getElementById('providers');
+      for (const child of container.children) {
+        const name = child.dataset.name;
+        const inputs = child.querySelectorAll('input, textarea');
+        const enabled = inputs[0].checked;
+        const language = inputs[1].value.trim();
+        const concurrency = parseInt(inputs[2].value, 10) || 1;
+        const timeoutMs = parseInt(inputs[3].value, 10) || 10000;
+        const priority = parseInt(inputs[4].value, 10) || 0;
+        let extra = {};
+        try { extra = JSON.parse(inputs[5].value || '{}'); } catch (e) { setStatus('Invalid JSON in extras for ' + name, true); return; }
+        newCfg.providers[name] = { enabled, priority, language, concurrency, timeoutMs, extra };
+      }
+      newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+      const res = await fetch('/admin/config', { method: 'PUT', headers, body: JSON.stringify(newCfg) });
+      if (!res.ok) {
+        const err = await res.json();
+        setStatus('Save failed: ' + (err.error || res.statusText), true);
+        return;
+      }
+      setStatus('Saved');
+    });
+
+    // initial load
+    loadAndRender();
+  </script>
+</body>
+</html>

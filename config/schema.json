@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "providers": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+              "priority": { "type": "integer", "minimum": 0, "default": 0 },
+            "language": { "type": "string" },
+            "concurrency": { "type": "integer", "minimum": 1 },
+            "timeoutMs": { "type": "integer", "minimum": 100, "default": 10000 },
+            "extra": { "type": "object", "additionalProperties": true }
+          },
+          "required": ["enabled"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "maxProvidersParallel": { "type": "integer", "minimum": 1, "default": 5 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["providers"],
+  "additionalProperties": false
+}

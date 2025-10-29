@@ -5,36 +5,43 @@ const cors = require('cors');
 // Expected usage: set PROVIDERS env var as a comma-separated list of provider folder paths,
 // e.g. PROVIDERS="./audioteka,./lubimyczytac"
 
-const providerPaths = (process.env.PROVIDERS || './audioteka,./lubimyczytac,./storytel').split(',').map(p => p.trim()).filter(Boolean);
+const path = require('path');
+
+// Load config and create providers from config
+const configLoader = require('../lib/config');
+let config = {};
+try {
+  config = configLoader.loadConfig();
+} catch (err) {
+  console.error('Failed to load config, exiting:', err.message);
+  process.exit(1);
+}
+
 const providers = [];
+for (const [name, opts] of Object.entries(config.providers || {})) {
+  if (!opts.enabled) {
+    console.log(`Provider ${name} is disabled in config`);
+    continue;
+  }
 
-for (const p of providerPaths) {
+  // Try to resolve provider module in ./<name>/provider.js
   try {
-    // providers should export a class with searchBooks(query, author)
-    // require the module's provider (e.g. ./audioteka/provider.js)
-    // prefer explicit provider.js if available
-    let modPath = p;
-    try {
-      // if path points to a folder, append /provider
-      const candidate = require('path').join(p, 'provider');
-      // eslint-disable-next-line import/no-dynamic-require
-      const ProviderClass = require(candidate);
-      providers.push({ name: p, instance: new ProviderClass() });
-      continue;
-    } catch (err) {
-      // fall through to try requiring the path directly
-    }
-
-    const ProviderClass = require(p);
-    providers.push({ name: p, instance: new ProviderClass() });
+    const candidate = require.resolve(path.resolve(__dirname, '..', name, 'provider.js'));
+    // eslint-disable-next-line import/no-dynamic-require
+    const ProviderClass = require(candidate);
+    const instance = new ProviderClass(opts);
+    providers.push({ name, instance, opts });
+    console.log(`Loaded provider ${name}`);
   } catch (err) {
-    console.warn(`Could not load provider at ${p}:`, err.message);
+    console.error(`Could not load provider ${name}:`, err.message);
   }
 }
 
 const app = express();
 const port = process.env.PORT || 4000;
 app.use(cors());
+
+const stringSimilarity = require('string-similarity');
 
 app.get('/search', async (req, res) => {
   const q = req.query.query;
@@ -54,13 +61,80 @@ app.get('/search', async (req, res) => {
   // Flatten matches and tag with provider
   const combined = all.reduce((acc, cur) => {
     if (cur.matches) {
-      const tagged = cur.matches.map(m => ({ ...m, _provider: cur.provider }));
+      const providerCfg = (config.providers && config.providers[cur.provider]) || {};
+      const priority = typeof providerCfg.priority === 'number' ? providerCfg.priority : 0;
+      const tagged = cur.matches.map(m => ({ ...m, _provider: cur.provider, _providerPriority: priority }));
       return acc.concat(tagged);
     }
     return acc;
   }, []);
 
-  res.json({ providers: all, matches: combined });
+  // Compute unified similarity for each match across all providers.
+  // Strategy: compare match.title to query (case-insensitive) for titleSimilarity.
+  // If author provided, compute best author similarity across match.authors and combine: 0.6*title + 0.4*author.
+  // Otherwise use titleSimilarity only. On tie, prefer audiobooks over books.
+  const cleanedQuery = q.trim().toLowerCase();
+  const cleanedAuthor = author ? author.trim().toLowerCase() : '';
+
+  const scored = combined.map(m => {
+    const title = (m.title || '').toString().toLowerCase();
+    const titleSimilarity = stringSimilarity.compareTwoStrings(title, cleanedQuery);
+
+    let combinedSimilarity = titleSimilarity;
+    if (cleanedAuthor && Array.isArray(m.authors) && m.authors.length) {
+      const bestAuthorSim = Math.max(...m.authors.map(a => stringSimilarity.compareTwoStrings((a||'').toLowerCase(), cleanedAuthor)));
+      combinedSimilarity = (titleSimilarity * 0.6) + (bestAuthorSim * 0.4);
+    }
+
+    return { ...m, similarity: combinedSimilarity };
+  });
+
+  // Sort by similarity desc; on equal similarity, prefer audiobooks over books
+  scored.sort((a, b) => {
+    if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+    const aIsAudio = (a.type === 'audiobook' || (a.format && a.format === 'audiobook')) ? 1 : 0;
+    const bIsAudio = (b.type === 'audiobook' || (b.format && b.format === 'audiobook')) ? 1 : 0;
+    if (bIsAudio !== aIsAudio) return bIsAudio - aIsAudio; // audiobook first
+    // If both same type (both audiobook or both book), use provider priority (higher first)
+    const aPriority = typeof a._providerPriority === 'number' ? a._providerPriority : 0;
+    const bPriority = typeof b._providerPriority === 'number' ? b._providerPriority : 0;
+    return bPriority - aPriority;
+  });
+
+  res.json({ providers: all, matches: scored });
+});
+
+// Admin endpoints for config. If ADMIN_TOKEN is set, require Bearer token; otherwise allow (LAN internal use).
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || null;
+function checkAdmin(req, res, next) {
+  if (!ADMIN_TOKEN) return next(); // no auth required
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
+  const token = header.substring(7);
+  if (token !== ADMIN_TOKEN) return res.status(401).json({ error: 'Invalid token' });
+  next();
+}
+
+app.get('/admin/config', checkAdmin, (req, res) => {
+  res.json(config);
+});
+
+app.put('/admin/config', checkAdmin, express.json(), (req, res) => {
+  try {
+    const newCfg = req.body;
+    // validate and save
+    configLoader.saveConfig(newCfg);
+    // reload in-memory
+    config = configLoader.loadConfig();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message, details: err.details || null });
+  }
+});
+
+// Serve a tiny admin UI for editing the JSON config
+app.get('/admin', (req, res) => {
+  res.sendFile(path.resolve(__dirname, 'admin.html'));
 });
 
 app.listen(port, () => console.log(`Backbone listening on ${port}; providers: ${providers.map(p=>p.name).join(',')}`));

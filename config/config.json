@@ -1,0 +1,39 @@
+{
+  "providers": {
+    "lubimyczytac": {
+      "enabled": true,
+      "priority": 10,
+      "language": "pl",
+      "concurrency": 3,
+      "timeoutMs": 10000,
+      "extra": {}
+    },
+    "audioteka": {
+      "enabled": true,
+      "priority": 20,
+      "language": "pl",
+      "concurrency": 4,
+      "timeoutMs": 15000,
+      "extra": {
+        "addLinkToDescription": true
+      }
+    },
+    "storytel": {
+      "enabled": true,
+      "priority": 15,
+      "language": "pl",
+      "concurrency": 3,
+      "timeoutMs": 12000,
+      "extra": {
+        "preferredRegions": [
+          "en",
+          "pl",
+          "cz"
+        ]
+      }
+    }
+  },
+  "global": {
+    "maxProvidersParallel": 3
+  }
+}
