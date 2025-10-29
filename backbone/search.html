@@ -1,0 +1,155 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Backbone Search Panel</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 1rem; }
+    label { display: inline-block; width: 70px; }
+    input[type=text] { width: 320px; }
+    button { margin-left: 6px; }
+    .result { border: 1px solid #ddd; padding: 8px; margin: 8px 0; display: flex; gap: 12px; }
+    .cover { width: 120px; height: 160px; object-fit: cover; background: #f6f6f6; border: 1px solid #eee; }
+    .meta { flex: 1; }
+    .providersrc { font-size: 0.9rem; color: #666; }
+    pre.json { background: #f7f7f7; padding: 8px; border-radius: 4px; overflow: auto; max-height: 300px; }
+  </style>
+</head>
+<body>
+  <h1>Search Panel</h1>
+  <div>
+    <label>Title</label>
+    <input id="q" type="text" placeholder="Title (required)" />
+  </div>
+  <div style="margin-top:8px">
+    <label>Author</label>
+    <input id="author" type="text" placeholder="Author (optional)" />
+  </div>
+  <div style="margin-top:8px">
+    <button id="search">Search</button>
+    <button id="clear">Clear</button>
+    <span id="status" style="margin-left:8px;color:green"></span>
+  </div>
+
+  <h2 style="margin-top:18px">Results</h2>
+  <div id="results"></div>
+
+  <script>
+    function setStatus(msg, isError) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.style.color = isError ? 'red' : 'green';
+    }
+
+    function formatDate(d) {
+      if (!d) return '';
+      try { return new Date(d).toLocaleDateString(); } catch(e) { return String(d); }
+    }
+
+    function renderMatch(m) {
+      const div = document.createElement('div');
+      div.className = 'result';
+
+      const img = document.createElement('img');
+      img.className = 'cover';
+      img.src = m.cover || (m.source && m.source.link) || '';
+      img.alt = m.title || '';
+      img.onerror = function() { this.style.visibility = 'hidden'; };
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+
+      const title = document.createElement('h3');
+      title.textContent = m.title || '(no title)';
+      meta.appendChild(title);
+
+      const prov = document.createElement('div');
+      prov.className = 'providersrc';
+      prov.textContent = `Provider: ${m._provider || (m.source && m.source.id) || 'unknown'} — type: ${m.type || ''} — similarity: ${typeof m.similarity === 'number' ? m.similarity.toFixed(3) : ''}`;
+      meta.appendChild(prov);
+
+      const authors = document.createElement('div');
+      authors.textContent = 'Authors: ' + ((m.authors && m.authors.join(', ')) || '');
+      meta.appendChild(authors);
+
+      if (m.description) {
+        const desc = document.createElement('p');
+        desc.innerHTML = m.description.length > 1000 ? (m.description.slice(0,1000) + '...') : m.description;
+        meta.appendChild(desc);
+      }
+
+      const details = document.createElement('div');
+      details.innerHTML = `
+        <strong>Publisher:</strong> ${m.publisher || ''} &nbsp; <strong>Published:</strong> ${formatDate(m.publishedDate)}<br/>
+        <strong>Genres:</strong> ${(m.genres||[]).join(', ')} &nbsp; <strong>Tags:</strong> ${(m.tags||[]).join(', ')}
+      `;
+      meta.appendChild(details);
+
+      // identifiers
+      if (m.identifiers) {
+        const ids = document.createElement('div');
+        ids.innerHTML = '<strong>Identifiers:</strong> ' + Object.entries(m.identifiers).map(([k,v])=>`${k}: ${v}`).join(' | ');
+        meta.appendChild(ids);
+      }
+
+      // link
+      if (m.url) {
+        const a = document.createElement('a');
+        a.href = m.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = 'Open source page';
+        meta.appendChild(document.createElement('div')).appendChild(a);
+      }
+
+      // raw toggle
+      const rawBtn = document.createElement('button'); rawBtn.textContent = 'Show JSON'; rawBtn.style.marginTop = '8px';
+      const rawPre = document.createElement('pre'); rawPre.className = 'json'; rawPre.style.display = 'none'; rawPre.textContent = JSON.stringify(m, null, 2);
+      rawBtn.addEventListener('click', () => {
+        rawPre.style.display = rawPre.style.display === 'none' ? 'block' : 'none';
+        rawBtn.textContent = rawPre.style.display === 'none' ? 'Show JSON' : 'Hide JSON';
+      });
+      meta.appendChild(rawBtn);
+      meta.appendChild(rawPre);
+
+      div.appendChild(img);
+      div.appendChild(meta);
+      return div;
+    }
+
+    async function doSearch() {
+      const q = document.getElementById('q').value.trim();
+      const author = document.getElementById('author').value.trim();
+      if (!q) return setStatus('Title is required', true);
+      setStatus('Searching...', false);
+      document.getElementById('results').innerHTML = '';
+      try {
+        const params = new URLSearchParams();
+        params.set('query', q);
+        if (author) params.set('author', author);
+        const res = await fetch('/search?' + params.toString());
+        if (!res.ok) {
+          const txt = await res.text();
+          setStatus('Search error: ' + res.status + ' ' + txt, true);
+          return;
+        }
+        const data = await res.json();
+        const matches = data.matches || [];
+        if (!matches.length) setStatus('No results', false);
+        else setStatus('Found ' + matches.length + ' results', false);
+        const container = document.getElementById('results');
+        for (const m of matches) {
+          container.appendChild(renderMatch(m));
+        }
+      } catch (err) {
+        setStatus('Error: ' + (err.message || err), true);
+      }
+    }
+
+    document.getElementById('search').addEventListener('click', doSearch);
+    document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+    document.getElementById('clear').addEventListener('click', () => { document.getElementById('q').value=''; document.getElementById('author').value=''; document.getElementById('results').innerHTML=''; setStatus(''); });
+
+  </script>
+</body>
+</html>

@@ -146,4 +146,9 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.resolve(__dirname, 'admin.html'));
 });
 
+// Serve a small search UI that calls the /search API and renders results
+app.get('/search-ui', (req, res) => {
+  res.sendFile(path.resolve(__dirname, 'search.html'));
+});
+
 app.listen(port, () => console.log(`Backbone listening on ${port}; providers: ${providers.map(p=>p.name).join(',')}`));
