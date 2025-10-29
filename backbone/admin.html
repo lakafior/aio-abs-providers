@@ -39,6 +39,11 @@
     <label>Allow Audiobooks:</label>
     <input id="global_allowAudiobooks" type="checkbox" />
   </div>
+  <div style="margin-top:8px">
+    <label>Title / Author balance:</label>
+    <input id="global_titleWeight" type="range" min="0" max="100" value="60" />
+    <span id="titleWeightLabel">Title 60% / Author 40%</span>
+  </div>
 
   <div class="controls">
     <button id="reload">Reload</button>
@@ -177,6 +182,8 @@
       document.getElementById('global_maxProvidersParallel').value = (cfg.global && cfg.global.maxProvidersParallel) || 3;
       document.getElementById('global_allowBooks').checked = (cfg.global && typeof cfg.global.allowBooks !== 'undefined') ? !!cfg.global.allowBooks : true;
       document.getElementById('global_allowAudiobooks').checked = (cfg.global && typeof cfg.global.allowAudiobooks !== 'undefined') ? !!cfg.global.allowAudiobooks : true;
+      document.getElementById('global_titleWeight').value = (cfg.global && typeof cfg.global.titleWeight === 'number') ? cfg.global.titleWeight : 60;
+      document.getElementById('titleWeightLabel').textContent = `Title ${document.getElementById('global_titleWeight').value}% / Author ${100 - document.getElementById('global_titleWeight').value}%`;
     }
 
     document.getElementById('reload').addEventListener('click', loadAndRender);
@@ -211,6 +218,7 @@
   newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
   newCfg.global.allowBooks = !!document.getElementById('global_allowBooks').checked;
   newCfg.global.allowAudiobooks = !!document.getElementById('global_allowAudiobooks').checked;
+  newCfg.global.titleWeight = parseInt(document.getElementById('global_titleWeight').value, 10) || 60;
 
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
@@ -264,6 +272,15 @@
 
     // initial load
     loadAndRender();
+    // live update for titleWeight slider
+    const titleSlider = document.getElementById('global_titleWeight');
+    if (titleSlider) {
+      titleSlider.addEventListener('input', (e) => {
+        const v = parseInt(e.target.value, 10) || 0;
+        const lbl = document.getElementById('titleWeightLabel');
+        if (lbl) lbl.textContent = `Title ${v}% / Author ${100 - v}%`;
+      });
+    }
   </script>
 </body>
 </html>

@@ -27,6 +27,7 @@
         "maxProvidersParallel": { "type": "integer", "minimum": 1, "default": 5 }
         ,"allowBooks": { "type": "boolean", "default": true },
         "allowAudiobooks": { "type": "boolean", "default": true }
+        ,"titleWeight": { "type": "integer", "minimum": 0, "maximum": 100, "default": 60 }
       },
       "additionalProperties": false
     }

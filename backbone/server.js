@@ -77,6 +77,8 @@ app.get('/search', async (req, res) => {
   // Otherwise use titleSimilarity only. On tie, prefer audiobooks over books.
   const cleanedQuery = q.trim().toLowerCase();
   const cleanedAuthor = author ? author.trim().toLowerCase() : '';
+  const titleWeight = (config.global && typeof config.global.titleWeight === 'number') ? (config.global.titleWeight / 100) : 0.6; // fraction
+  const authorWeight = 1 - titleWeight;
 
   const scored = combined.map(m => {
     const title = (m.title || '').toString().toLowerCase();
@@ -85,7 +87,7 @@ app.get('/search', async (req, res) => {
     let combinedSimilarity = titleSimilarity;
     if (cleanedAuthor && Array.isArray(m.authors) && m.authors.length) {
       const bestAuthorSim = Math.max(...m.authors.map(a => stringSimilarity.compareTwoStrings((a||'').toLowerCase(), cleanedAuthor)));
-      combinedSimilarity = (titleSimilarity * 0.6) + (bestAuthorSim * 0.4);
+      combinedSimilarity = (titleSimilarity * titleWeight) + (bestAuthorSim * authorWeight);
     }
 
     return { ...m, similarity: combinedSimilarity };
