@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Backbone and provider wrappers for AudiobookShelf",
-  "main": "backbone/server.js",
+  "main": "src/backbone/server.js",
   "scripts": {
-    "start:backbone": "node backbone/server.js",
+    "start:backbone": "node src/backbone/server.js",
     "start:all": "npm run start:backbone",
     "test": "echo \"No tests configured\" && exit 0"
   },

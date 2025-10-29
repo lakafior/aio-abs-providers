@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  backbone:
+    build: .
+    image: lakafior/aio-abs-providers:latest
+    container_name: aio-backbone
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+    volumes:
+      - ./src/config:/app/src/config
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
