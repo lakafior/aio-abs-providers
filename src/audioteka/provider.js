@@ -245,7 +245,8 @@ class AudiotekaProvider {
       const durationInMinutes = parseDuration(durationStr);
 
   let publisher = '';
-  if (this.language === 'cz') {
+  try {
+    if (this.language === 'cz') {
         publisher = $('table tr').filter(function() {
           const text = $(this).find('td:first-child').text().trim();
           return text === 'Vydavatel' || text === 'Nakladatel';
@@ -267,9 +268,16 @@ class AudiotekaProvider {
           }).find('.value').text().trim();
         }
       } else {
+        // Prefer explicit publisher anchor (e.g., /pl/wydawca/ or /pl/wydawca)
         publisher = $('.product-table tr:contains("Wydawca") td:last-child a').text().trim() ||
                     $('.product-table tr:contains("Wydawca") td:last-child').text().trim();
+        // Some Audioteka pages show publisher as tag links without dt table
+  if (!publisher) publisher = $('a[href*="/pl/wydawca/"]').first().text().trim() || $('a[href*="/wydawca/"]').first().text().trim() || '';
+  if (!publisher) publisher = $('a[href*="/cz/vydavatel/"]').first().text().trim() || '';
       }
+  } catch (e) {
+    publisher = '';
+  }
 
   let type = '';
   if (this.language === 'cz') {

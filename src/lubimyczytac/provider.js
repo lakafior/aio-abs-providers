@@ -145,7 +145,30 @@ class LubimyCzytacProvider {
               $('.book-cover source').attr('srcset') ||
               $('.book-cover img').attr('src') ||
               $('meta[property="og:image"]').attr('content') || '';
-      const publisher = $('dt:contains("Wydawnictwo:")').next('dd').find('a').text().trim() || '';
+      // Robust publisher extraction: the page may show publisher in different places
+      let publisher = '';
+      try {
+        // 1) standard dt/dd label
+        publisher = $('dt').filter((i, el) => $(el).text().toLowerCase().includes('wydawnictwo')).next('dd').find('a').text().trim() || '';
+        // 2) inline span blocks used on some pages
+        if (!publisher) publisher = $('span.book__txt').filter((i, el) => $(el).text().toLowerCase().includes('wydawnictwo')).find('a').text().trim() || '';
+        // 3) direct anchor links to wydawnictwo pages
+        if (!publisher) publisher = $('a[href*="/wydawnictwo/"]').first().text().trim() || '';
+        // 4) generic 'Wydawnictwo:' text followed by an <a> anywhere nearby
+        if (!publisher) {
+          const lbl = $('*:contains("Wydawnictwo")').filter((i, el) => $(el).text().toLowerCase().includes('wydawnictwo')).first();
+          if (lbl && lbl.length) {
+            const a = $(lbl).find('a').first();
+            if (a && a.length) publisher = a.text().trim();
+            else {
+              const following = $(lbl).nextAll('a').first();
+              if (following && following.length) publisher = following.text().trim();
+            }
+          }
+        }
+      } catch (e) {
+        publisher = '';
+      }
       const languages = $('dt:contains("Język:")').next('dd').text().trim().split(', ') || [];
       const description = $('.collapse-content').html() || $('meta[property="og:description"]').attr('content') || '';
       const seriesElement = $('span.d-none.d-sm-block.mt-1:contains("Cykl:")').find('a').text().trim();
@@ -189,7 +212,7 @@ class LubimyCzytacProvider {
         description: this.enrichDescription(description, pages, publishedDate, translator),
         narrator: narrator || undefined,
         languages: languages.map(lang => this.getLanguageName(lang)),
-        publisher,
+        publisher: publisher || undefined,
         publishedDate,
         rating,
         series,

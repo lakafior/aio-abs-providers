@@ -531,14 +531,15 @@ app.get('/search', async (req, res) => {
   };
 
   for (const it of fullResults) normalizeAuthors(it);
-  // Ensure subtitle and publisher exist where possible by looking into identifiers or nested fields
+  // Ensure subtitle exists where possible by looking into identifiers
+  // NOTE: avoid using provider `source.description` as a fallback for `publisher` —
+  // that often contains the provider/site name (Lubimyczytac, Audioteka) rather
+  // than the actual publishing company. Providers should supply `publisher`.
   for (const it of fullResults) {
     if ((!it.subtitle || it.subtitle === '') && it.identifiers && it.identifiers.title) {
       it.subtitle = it.identifiers.title;
     }
-    if ((!it.publisher || it.publisher === '') && it.source && it.source.description) {
-      it.publisher = it.source.description;
-    }
+    // do not auto-fill `publisher` from provider site description
   }
 
   res.json({ providers: all, matches: fullResults });
