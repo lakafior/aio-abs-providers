@@ -64,11 +64,12 @@
   img.src = m.cover || (m.source && m.source.link) || '';
   img.alt = m.title || '';
   img.onerror = function() { this.style.visibility = 'hidden'; };
-
-  // badge for type
+  // Decide audiobook vs book: explicit type or provider-specific fallback (Audioteka is audiobooks)
+  const isAudio = (m.type && m.type.toLowerCase() === 'audiobook') || (m._provider && m._provider.toLowerCase() === 'audioteka');
   const badge = document.createElement('span'); badge.className = 'badge';
-  badge.textContent = (m.type && m.type.toLowerCase() === 'audiobook') ? 'AUDIOBOOK' : 'BOOK';
-  img.classList.add((m.type && m.type.toLowerCase() === 'audiobook') ? 'audiobook' : 'book');
+  badge.textContent = isAudio ? 'AUDIOBOOK' : 'BOOK';
+  img.classList.add(isAudio ? 'audiobook' : 'book');
+  coverWrap.classList.add(isAudio ? 'audiobook' : 'book');
 
       const meta = document.createElement('div');
       meta.className = 'meta';

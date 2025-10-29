@@ -96,6 +96,7 @@ class AudiotekaProvider {
             url: bookUrl,
             cover,
             rating,
+            type: 'audiobook', // explicit: Audioteka provides audiobooks
             source: {
               id: this.id,
               description: this.name,
@@ -386,6 +387,7 @@ class AudiotekaProvider {
         ...match,
         cover: pageCover || match.cover,
         narrator: narrators,
+        type: match.type || 'audiobook',
         duration: durationInMinutes,
         publisher,
         description,
