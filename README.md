@@ -66,10 +66,10 @@ curl 'http://localhost:4000/search?query=Zrost&author=Robert%20Ma%C5%82ecki' -s 
 
 Project includes a multi-stage `Dockerfile` and `docker-compose.yml`.
 
-Build and run locally:
+Run locally:
 ```bash
-# build & start (detached)
-docker compose up -d --build
+# start container
+docker compose up -d
 
 # view logs
 docker compose logs -f backbone
