@@ -64,7 +64,23 @@ curl 'http://localhost:4000/search?query=Zrost&author=Robert%20Ma%C5%82ecki' -s 
 ---
 ## Running with Docker / docker-compose
 
-Project includes a multi-stage `Dockerfile` and `docker-compose.yml`.
+Project includes `docker-compose.yml`:
+
+```yml
+version: '3.8'
+services:
+  aioabs-backbone:
+    image: lakafior/aio-abs-providers:latest
+    container_name: aio-backbone
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./src/config:/src/config
+      - ./logs:/logs
+    restart: unless-stopped
+```
 
 Run locally:
 ```bash
