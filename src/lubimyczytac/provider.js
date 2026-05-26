@@ -1,18 +1,18 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
-const stringSimilarity = require('string-similarity');
-const NodeCache = require('node-cache');
+const axios = require("axios");
+const cheerio = require("cheerio");
+const stringSimilarity = require("string-similarity");
+const NodeCache = require("node-cache");
 
 class LubimyCzytacProvider {
   constructor(options = {}) {
-    this.id = 'lubimyczytac';
-    this.name = 'Lubimy Czytać';
-    this.baseUrl = 'https://lubimyczytac.pl';
+    this.id = "lubimyczytac";
+    this.name = "Lubimy Czytać";
+    this.baseUrl = "https://lubimyczytac.pl";
     this.opts = options || {};
-    this.language = this.opts.language || 'pl';
+    this.language = this.opts.language || "pl";
     this.concurrency = this.opts.concurrency || 3;
     this.timeoutMs = this.opts.timeoutMs || 10000;
-    this.textDecoder = new TextDecoder('utf-8');
+    this.textDecoder = new TextDecoder("utf-8");
     this.cache = new NodeCache({ stdTTL: 600 });
   }
 
@@ -20,7 +20,7 @@ class LubimyCzytacProvider {
     return this.textDecoder.decode(new TextEncoder().encode(text));
   }
 
-  async searchBooks(query, author = '') {
+  async searchBooks(query, author = "") {
     const cacheKey = `${query}-${author}`;
     const cachedResult = this.cache.get(cacheKey);
     if (cachedResult) {
@@ -28,33 +28,51 @@ class LubimyCzytacProvider {
     }
 
     try {
+      const currentTime = new Date().toLocaleString("pl-PL", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+
+      console.log(`Current time: ${currentTime}`);
+      console.log(`Input details: "${query}" by "${author}"`);
+
       if (!author && query.includes("-")) {
         author = query.split("-")[0].replace(/\./g, " ").trim();
       } else {
         author = author.split("-")[0].replace(/\./g, " ").trim();
       }
 
+      console.log("Extracted author: ", author);
+
       let cleanedTitle = query;
       if (!/^".*"$/.test(cleanedTitle)) {
-        cleanedTitle = cleanedTitle.replace(/(\d+kbps)/g, '')
-          .replace(/\bVBR\b.*$/gi, '')
-          .replace(/^[\w\s.-]+-\s*/g, '')
-          .replace(/czyt.*/gi, '')
-          .replace(/.*-/, '')
-          .replace(/.*?(T[\s.]?\d{1,3}).*?(.*)$/i, '$2')
-          .replace(/.*?(Tom[\s.]?\d{1,3}).*?(.*)$/i, '$2')
-          .replace(/.*?\(\d{1,3}\)\s*/g, '')
-          .replace(/\(.*?\)/g, '')
-          .replace(/\[.*?\]/g, '')
-          .replace(/\(/g, ' ')
-          .replace(/[^\p{L}\d]/gu, ' ')
-          .replace(/\./g, ' ')
-          .replace(/\s+/g, ' ')
-          .replace(/superprodukcja/i, '')
+        cleanedTitle = cleanedTitle
+          .replace(/(\d+kbps)/g, "")
+          .replace(/\bVBR\b.*$/gi, "")
+          .replace(/^[\w\s.-]+-\s*/g, "")
+          .replace(/czyt.*/gi, "")
+          .replace(/.*-/, "")
+          .replace(/.*?(T[\s.]?\d{1,3}).*?(.*)$/i, "$2")
+          .replace(/.*?(Tom[\s.]?\d{1,3}).*?(.*)$/i, "$2")
+          .replace(/.*?\(\d{1,3}\)\s*/g, "")
+          .replace(/\(.*?\)/g, "")
+          .replace(/\[.*?\]/g, "")
+          .replace(/\(/g, " ")
+          .replace(/[^\p{L}\d]/gu, " ")
+          .replace(/\./g, " ")
+          .replace(/\s+/g, " ")
+          .replace(/superprodukcja/i, "")
           .trim();
       } else {
-        cleanedTitle = cleanedTitle.replace(/^"(.*)"$/, '$1');
+        cleanedTitle = cleanedTitle.replace(/^"(.*)"$/, "$1");
       }
+
+      console.log("Extracted title: ", cleanedTitle);
 
       let booksSearchUrl = `${this.baseUrl}/szukaj/ksiazki?phrase=${encodeURIComponent(cleanedTitle)}`;
       let audiobooksSearchUrl = `${this.baseUrl}/szukaj/audiobooki?phrase=${encodeURIComponent(cleanedTitle)}`;
@@ -63,42 +81,83 @@ class LubimyCzytacProvider {
         audiobooksSearchUrl += `&author=${encodeURIComponent(author)}`;
       }
 
-      const booksResponse = await axios.get(booksSearchUrl, { responseType: 'arraybuffer' });
-      const audiobooksResponse = await axios.get(audiobooksSearchUrl, { responseType: 'arraybuffer' });
+      console.log("Books Search URL:", booksSearchUrl);
+      console.log("Audiobooks Search URL:", audiobooksSearchUrl);
 
-      const booksMatches = this.parseSearchResults(booksResponse.data, 'book');
-      const audiobooksMatches = this.parseSearchResults(audiobooksResponse.data, 'audiobook');
+      const booksResponse = await axios.get(booksSearchUrl, {
+        responseType: "arraybuffer",
+      });
+      const audiobooksResponse = await axios.get(audiobooksSearchUrl, {
+        responseType: "arraybuffer",
+      });
+
+      const booksMatches = this.parseSearchResults(booksResponse.data, "book");
+      const audiobooksMatches = this.parseSearchResults(
+        audiobooksResponse.data,
+        "audiobook",
+      );
 
       let allMatches = [...booksMatches, ...audiobooksMatches];
 
-      allMatches = allMatches.map(match => {
-        const titleSimilarity = stringSimilarity.compareTwoStrings(match.title.toLowerCase(), cleanedTitle.toLowerCase());
+      allMatches = allMatches
+        .map((match) => {
+          const titleSimilarity = stringSimilarity.compareTwoStrings(
+            match.title.toLowerCase(),
+            cleanedTitle.toLowerCase(),
+          );
 
-        let combinedSimilarity;
-        if (author) {
-          const authorSimilarity = Math.max(...match.authors.map(a =>
-            stringSimilarity.compareTwoStrings(a.toLowerCase(), author.toLowerCase())
-          ));
-          combinedSimilarity = (titleSimilarity * 0.6) + (authorSimilarity * 0.4);
-        } else {
-          combinedSimilarity = titleSimilarity;
-        }
+          let combinedSimilarity;
+          if (author) {
+            const authorSimilarity = Math.max(
+              ...match.authors.map((a) =>
+                stringSimilarity.compareTwoStrings(
+                  a.toLowerCase(),
+                  author.toLowerCase(),
+                ),
+              ),
+            );
+            combinedSimilarity = titleSimilarity * 0.6 + authorSimilarity * 0.4;
+          } else {
+            combinedSimilarity = titleSimilarity;
+          }
 
-        return { ...match, similarity: combinedSimilarity };
-      }).sort((a, b) => {
-        if (b.similarity !== a.similarity) return b.similarity - a.similarity;
-        const typeValueA = a.type === 'audiobook' ? 1 : 0;
-        const typeValueB = b.type === 'audiobook' ? 1 : 0;
-        return typeValueB - typeValueA;
-      }).slice(0, 20);
+          return { ...match, similarity: combinedSimilarity };
+        })
+        .sort((a, b) => {
+          if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+          const typeValueA = a.type === "audiobook" ? 1 : 0;
+          const typeValueB = b.type === "audiobook" ? 1 : 0;
+          return typeValueB - typeValueA;
+        })
+        .slice(0, 20);
 
-      // Return lightweight snippets here. Backbone will decide which items to fetch full
-      // metadata for and call getFullMetadata() only for candidates.
-      const result = { matches: allMatches };
+      const fullMetadata = await Promise.all(
+        allMatches.map((match) => this.getFullMetadata(match)),
+      );
+
+      const adjustedMetadata = fullMetadata
+        .map((match) => {
+          let adjustedSimilarity = match.similarity;
+
+          // Penalty for missing ISBN
+          if (!match.identifiers?.isbn || match.identifiers.isbn === "") {
+            adjustedSimilarity *= 0.99;
+          }
+
+          return { ...match, similarity: adjustedSimilarity };
+        })
+        .sort((a, b) => {
+          if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+          const typeValueA = a.type === "audiobook" ? 1 : 0;
+          const typeValueB = b.type === "audiobook" ? 1 : 0;
+          return typeValueB - typeValueA;
+        });
+
+      const result = { matches: adjustedMetadata };
       this.cache.set(cacheKey, result);
       return result;
     } catch (error) {
-      console.error('Error searching books:', error.message, error.stack);
+      console.error("Error searching books:", error.message, error.stack);
       return { matches: [] };
     }
   }
@@ -108,20 +167,35 @@ class LubimyCzytacProvider {
     const $ = cheerio.load(decodedData);
     const matches = [];
 
-    $('.authorAllBooks__single').each((index, element) => {
+    $(".book-card--l").each((index, element) => {
       const $book = $(element);
-      const $bookInfo = $book.find('.authorAllBooks__singleText');
 
-      const title = $bookInfo.find('.authorAllBooks__singleTextTitle').text().trim();
-      const bookUrl = $bookInfo.find('.authorAllBooks__singleTextTitle').attr('href');
-      const authors = $bookInfo.find('a[href*="/autor/"]').map((i, el) => $(el).text().trim()).get();
+      // Skip promoted offers / reklam
+      if (
+        $book.closest(".promoted-offers__list, .promoted-offers").length > 0
+      ) {
+        return;
+      }
+
+      const title = $book.find(".book-card__title").text().trim();
+      const bookUrl = $book.find(".book-card__title").attr("href");
+      const authors = $book
+        .find(".book-card__author a")
+        .map((i, el) => $(el).text().trim())
+        .get();
+
+      const bookId =
+        $book.attr("data-book-id") ||
+        (bookUrl ? bookUrl.split("/").filter(Boolean)[1] : null);
 
       if (title && bookUrl) {
         matches.push({
-          id: bookUrl.split('/').pop(),
+          id: bookId,
           title: this.decodeUnicode(title),
-          authors: authors.map(author => this.decodeUnicode(author)),
-          url: `${this.baseUrl}${bookUrl}`,
+          authors: authors.map((author) => this.decodeUnicode(author)),
+          url: bookUrl.startsWith("http")
+            ? bookUrl
+            : `${this.baseUrl}${bookUrl}`,
           type: type,
           source: {
             id: this.id,
@@ -137,81 +211,85 @@ class LubimyCzytacProvider {
 
   async getFullMetadata(match) {
     try {
-      const response = await axios.get(match.url, { responseType: 'arraybuffer' });
+      const response = await axios.get(match.url, {
+        responseType: "arraybuffer",
+      });
       const decodedData = this.decodeText(response.data);
       const $ = cheerio.load(decodedData);
 
-      const cover = $('.book-cover a').attr('data-cover') ||
-              $('.book-cover source').attr('srcset') ||
-              $('.book-cover img').attr('src') ||
-              $('meta[property="og:image"]').attr('content') || '';
-      // Robust publisher extraction: the page may show publisher in different places
-      let publisher = '';
-      try {
-        // 1) standard dt/dd label
-        publisher = $('dt').filter((i, el) => $(el).text().toLowerCase().includes('wydawnictwo')).next('dd').find('a').text().trim() || '';
-        // 2) inline span blocks used on some pages
-        if (!publisher) publisher = $('span.book__txt').filter((i, el) => $(el).text().toLowerCase().includes('wydawnictwo')).find('a').text().trim() || '';
-        // 3) direct anchor links to wydawnictwo pages
-        if (!publisher) publisher = $('a[href*="/wydawnictwo/"]').first().text().trim() || '';
-        // 4) generic 'Wydawnictwo:' text followed by an <a> anywhere nearby
-        if (!publisher) {
-          const lbl = $('*:contains("Wydawnictwo")').filter((i, el) => $(el).text().toLowerCase().includes('wydawnictwo')).first();
-          if (lbl && lbl.length) {
-            const a = $(lbl).find('a').first();
-            if (a && a.length) publisher = a.text().trim();
-            else {
-              const following = $(lbl).nextAll('a').first();
-              if (following && following.length) publisher = following.text().trim();
-            }
-          }
-        }
-      } catch (e) {
-        publisher = '';
-      }
-      const languages = $('dt:contains("Język:")').next('dd').text().trim().split(', ') || [];
-      const description = $('.collapse-content').html() || $('meta[property="og:description"]').attr('content') || '';
-      const seriesElement = $('span.d-none.d-sm-block.mt-1:contains("Cykl:")').find('a').text().trim();
+      const cover =
+        $("a#js-lightboxCover").attr("href") ||
+        $(".book-cover__link").attr("href") ||
+        $('meta[property="og:image"]').attr("content") ||
+        "";
+
+      const publisher =
+        $('span.book__txt:contains("Wydawnictwo:")').find("a").text().trim() ||
+        $("[data-ga-book-publishers]").attr("data-ga-book-publishers") ||
+        "";
+
+      const languages =
+        $('dt:contains("Język:")').next("dd").text().trim().split(", ") || [];
+      const description =
+        $("#book-description").html() ||
+        $('meta[property="og:description"]').attr("content") ||
+        "";
+      const seriesElement = $('span.d-none.d-sm-block.mt-1:contains("Cykl:")')
+        .find("a")
+        .text()
+        .trim();
       const series = this.extractSeriesName(seriesElement);
       const seriesIndex = this.extractSeriesIndex(seriesElement);
       const genres = this.extractGenres($);
       const tags = this.extractTags($);
-      const rating = parseFloat($('meta[property="books:rating:value"]').attr('content')) / 2 || null;
-      const isbn = $('meta[property="books:isbn"]').attr('content') || '';
+      const rating =
+        parseFloat($('meta[property="books:rating:value"]').attr("content")) /
+          2 || null;
+      const isbn = $('meta[property="books:isbn"]').attr("content") || "";
 
       let publishedDate, pages;
       try {
         publishedDate = this.extractPublishedDate($);
         pages = this.extractPages($);
       } catch (error) {
-        console.error('Error extracting published date or pages:', error.message);
+        console.error(
+          "Error extracting published date or pages:",
+          error.message,
+        );
       }
 
       const translator = this.extractTranslator($);
       // Try to extract narrator/lector info (Polish pages use 'Czyta' or similar)
-      let narrator = '';
+      let narrator = "";
       try {
-        narrator = $('dt:contains("Czyta")').next('dd').text().trim() || '';
+        narrator = $('dt:contains("Czyta")').next("dd").text().trim() || "";
         if (!narrator) {
           // look for product-detail-item label patterns
-          const narrDiv = $('.product-detail-item').filter(function() {
-            const lbl = $(this).find('.label').text().trim();
-            return /Czyta|Czytają|Czytał|Czytała/i.test(lbl);
-          }).find('.value');
+          const narrDiv = $(".product-detail-item")
+            .filter(function () {
+              const lbl = $(this).find(".label").text().trim();
+              return /Czyta|Czytają|Czytał|Czytała/i.test(lbl);
+            })
+            .find(".value");
           if (narrDiv && narrDiv.length) {
             narrator = narrDiv.text().trim();
           }
         }
       } catch (err) {
-        narrator = '';
+        narrator = "";
       }
 
       const fullMetadata = {
         ...match,
         cover,
-        description: this.enrichDescription(description, pages, publishedDate, translator),
+        description: this.enrichDescription(
+          description,
+          pages,
+          publishedDate,
+          translator,
+        ),
         narrator: narrator || undefined,
-        languages: languages.map(lang => this.getLanguageName(lang)),
+        languages: languages.map((lang) => this.getLanguageName(lang)),
         publisher: publisher || undefined,
         publishedDate,
         rating,
@@ -238,13 +316,20 @@ class LubimyCzytacProvider {
             else candidates.push(data);
             for (const node of candidates) {
               if (!fullMetadata.subtitle) {
-                const sub = node.alternativeHeadline || node.headline || node.subtitle || node.alternateName;
-                if (sub && typeof sub === 'string' && sub.trim()) fullMetadata.subtitle = sub.trim();
+                const sub =
+                  node.alternativeHeadline ||
+                  node.headline ||
+                  node.subtitle ||
+                  node.alternateName;
+                if (sub && typeof sub === "string" && sub.trim())
+                  fullMetadata.subtitle = sub.trim();
               }
               if (!fullMetadata.publisher) {
                 if (node.publisher) {
-                  if (typeof node.publisher === 'string') fullMetadata.publisher = node.publisher;
-                  else if (node.publisher.name) fullMetadata.publisher = node.publisher.name;
+                  if (typeof node.publisher === "string")
+                    fullMetadata.publisher = node.publisher;
+                  else if (node.publisher.name)
+                    fullMetadata.publisher = node.publisher.name;
                 }
               }
             }
@@ -259,14 +344,18 @@ class LubimyCzytacProvider {
 
       return fullMetadata;
     } catch (error) {
-      console.error(`Error fetching full metadata for ${match.title}:`, error.message, error.stack);
+      console.error(
+        `Error fetching full metadata for ${match.title}:`,
+        error.message,
+        error.stack,
+      );
       return match;
     }
   }
 
   extractSeriesName(seriesElement) {
     if (!seriesElement) return null;
-    return seriesElement.replace(/\s*\(tom \d+.*?\)\s*$/, '').trim();
+    return seriesElement.replace(/\s*\(tom \d+.*?\)\s*$/, "").trim();
   }
 
   extractSeriesIndex(seriesElement) {
@@ -276,27 +365,78 @@ class LubimyCzytacProvider {
   }
 
   extractPublishedDate($) {
-    const dateText = $('dt[title*="Data pierwszego wydania"]').next('dd').text().trim();
+    const dateText = $('dt[title*="Data pierwszego wydania"]')
+      .next("dd")
+      .text()
+      .trim();
     return dateText ? new Date(dateText) : null;
   }
 
   extractPages($) {
     try {
+      // There might be multiple script tags with application/ld+json
       const scripts = $('script[type="application/ld+json"]');
+
       for (let i = 0; i < scripts.length; i++) {
-        const txt = $(scripts[i]).text();
-        if (!txt) continue;
+        const scriptText = $(scripts[i]).html() || $(scripts[i]).text() || "";
+        if (!scriptText.trim()) continue;
+
         try {
-          const data = JSON.parse(txt);
-          if (data && (data.numberOfPages || data.numberOfPages === 0)) return data.numberOfPages;
-          // some pages have nested objects
-          if (data && data['@graph']) {
-            for (const node of data['@graph']) {
-              if (node.numberOfPages) return node.numberOfPages;
+          // Try to extract just the JSON part if there's extra content
+          let jsonText = scriptText.trim();
+
+          // Find the first { or [ and try to parse from there
+          const jsonStart = Math.min(
+            jsonText.indexOf("{") >= 0 ? jsonText.indexOf("{") : Infinity,
+            jsonText.indexOf("[") >= 0 ? jsonText.indexOf("[") : Infinity,
+          );
+
+          if (jsonStart !== Infinity && jsonStart > 0) {
+            jsonText = jsonText.substring(jsonStart);
+          }
+
+          // Try to find where valid JSON ends by parsing progressively
+          let data = null;
+
+          // First, try parsing the whole thing
+          try {
+            data = JSON.parse(jsonText);
+          } catch (e) {
+            // If that fails, try to find the end of valid JSON
+            // by removing characters from the end until it parses
+            for (let len = jsonText.length - 1; len > 0; len--) {
+              try {
+                const substring = jsonText.substring(0, len);
+                // Check if we have balanced braces/brackets
+                const openBraces = (substring.match(/{/g) || []).length;
+                const closeBraces = (substring.match(/}/g) || []).length;
+                const openBrackets = (substring.match(/\[/g) || []).length;
+                const closeBrackets = (substring.match(/\]/g) || []).length;
+
+                if (
+                  openBraces === closeBraces &&
+                  openBrackets === closeBrackets
+                ) {
+                  data = JSON.parse(substring.trim());
+                  break;
+                }
+              } catch (innerError) {
+                // Continue trying shorter strings
+                continue;
+              }
             }
           }
-        } catch (err) {
-          // ignore parse error for this script and continue
+
+          if (data) {
+            if (data.numberOfPages) return data.numberOfPages;
+            if (data["@graph"]) {
+              for (const node of data["@graph"]) {
+                if (node.numberOfPages) return node.numberOfPages;
+              }
+            }
+          }
+        } catch (innerError) {
+          // Try next script tag
           continue;
         }
       }
@@ -306,26 +446,36 @@ class LubimyCzytacProvider {
       const match = bodyText.match(/(\d{1,4})\s+stron/i);
       if (match) return parseInt(match[1], 10);
     } catch (error) {
-      console.error('Error extracting pages:', error && error.message ? error.message : error);
+      console.error("Error parsing JSON for pages:", error.message);
     }
     return null;
   }
 
   extractTranslator($) {
-    return $('dt:contains("Tłumacz:")').next('dd').find('a').text().trim() || null;
+    return (
+      $('dt:contains("Tłumacz:")').next("dd").find("a").text().trim() || null
+    );
   }
 
   extractGenres($) {
-    const genreText = $('.book__category.d-sm-block.d-none').text().trim();
-    return genreText ? genreText.split(',').map(genre => genre.trim()) : [];
+    const genreText = $(".book__category.d-sm-block.d-none").text().trim();
+    return genreText ? genreText.split(",").map((genre) => genre.trim()) : [];
   }
 
   extractTags($) {
-    return $('a[href*="/ksiazki/t/"]').map((i, el) => $(el).text().trim()).get() || [];
+    return (
+      $('a[href*="/ksiazki/t/"]')
+        .map((i, el) => $(el).text().trim())
+        .get() || []
+    );
   }
 
   stripHtmlTags(html) {
-    return html.replace(/<[^>]*>/g, '');
+    // Remove HTML tags
+    let text = html.replace(/<[^>]*>/g, "");
+    // Fix missing spaces after periods followed by capital letters
+    text = text.replace(/\.([A-ZĄĆĘŁŃÓŚŹŻ])/g, ". $1");
+    return text;
   }
 
   enrichDescription(description, pages, publishedDate, translator) {
@@ -352,19 +502,19 @@ class LubimyCzytacProvider {
 
   getLanguageName(language) {
     const languageMap = {
-      polski: 'pol',
-      angielski: 'eng',
+      polski: "pol",
+      angielski: "eng",
     };
     return languageMap[language.toLowerCase()] || language;
   }
 
   decodeUnicode(str) {
     return str.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
-      String.fromCharCode(parseInt(hex, 16))
+      String.fromCharCode(parseInt(hex, 16)),
     );
   }
 }
 
 module.exports = LubimyCzytacProvider;
 // supported languages for admin UI (ISO codes)
-module.exports.supportedLanguages = ['pl'];
+module.exports.supportedLanguages = ["pl"];
