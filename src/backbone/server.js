@@ -47,12 +47,36 @@ const app = express();
 const port = process.env.PORT || 4000;
 app.use(cors());
 
+// Optional shared key (API_KEY env). When set, every endpoint asks for it: `Authorization: <key>` (what
+// Audiobookshelf and Dove send), `Authorization: Bearer <key>`, or `?key=<key>` (the admin and search pages).
+// Needed as soon as the backbone is reachable from the internet (a Cloudflare tunnel): the admin endpoints
+// rewrite the config.
+const API_KEY = (process.env.API_KEY || '').trim();
+app.use((req, res, next) => {
+  if (!API_KEY) return next();
+  const header = (req.get('authorization') || '').trim();
+  const given = header.replace(/^Bearer\s+/i, '') || (req.query.key || '').toString();
+  if (given === API_KEY) return next();
+  res.status(401).json({ error: 'API key required' });
+});
+
 const stringSimilarity = require('string-similarity');
+
+// Compared without case, diacritics or punctuation: phones type "wiedzmin" for "Wiedźmin.".
+const norm = (s) => (s || '').toString().toLowerCase()
+  .replace(/ł/g, 'l')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
+  .trim();
 
 app.get('/search', async (req, res) => {
   const q = req.query.query;
   const author = req.query.author;
   if (!q) return res.status(400).json({ error: 'query required' });
+  // `format=audiobook` or `format=ebook` (`book`) keeps one kind; Audiobookshelf sends neither and gets both.
+  const format = (req.query.format || '').toString().toLowerCase();
+  const onlyAudio = format === 'audiobook';
+  const onlyBooks = format === 'ebook' || format === 'book';
 
   const tasks = providers.map(async (p) => {
     try {
@@ -102,18 +126,18 @@ app.get('/search', async (req, res) => {
   // Strategy: compare match.title to query (case-insensitive) for titleSimilarity.
   // If author provided, compute best author similarity across match.authors and combine: 0.6*title + 0.4*author.
   // Otherwise use titleSimilarity only. On tie, prefer audiobooks over books.
-  const cleanedQuery = q.trim().toLowerCase();
-  const cleanedAuthor = author ? author.trim().toLowerCase() : '';
+  const cleanedQuery = norm(q);
+  const cleanedAuthor = author ? norm(author) : '';
   const titleWeight = (config.global && typeof config.global.titleWeight === 'number') ? (config.global.titleWeight / 100) : 0.6; // fraction
   const authorWeight = 1 - titleWeight;
 
   const scored = combined.map(m => {
-    const title = (m.title || '').toString().toLowerCase();
+    const title = norm(m.title);
     const titleSimilarity = stringSimilarity.compareTwoStrings(title, cleanedQuery);
 
     let combinedSimilarity = titleSimilarity;
     if (cleanedAuthor && Array.isArray(m.authors) && m.authors.length) {
-      const bestAuthorSim = Math.max(...m.authors.map(a => stringSimilarity.compareTwoStrings((a||'').toLowerCase(), cleanedAuthor)));
+      const bestAuthorSim = Math.max(...m.authors.map(a => stringSimilarity.compareTwoStrings(norm(a), cleanedAuthor)));
       combinedSimilarity = (titleSimilarity * titleWeight) + (bestAuthorSim * authorWeight);
     }
 
@@ -126,8 +150,8 @@ app.get('/search', async (req, res) => {
 
   const filtered = scored.filter(m => {
     const isAudio = (m.type === 'audiobook' || (m.format && m.format === 'audiobook')) ? true : false;
-    if (isAudio && !allowAudiobooks) return false;
-    if (!isAudio && !allowBooks) return false;
+    if (isAudio && (!allowAudiobooks || onlyBooks)) return false;
+    if (!isAudio && (!allowBooks || onlyAudio)) return false;
     return true;
   });
 
@@ -607,7 +631,10 @@ app.get('/search', async (req, res) => {
     if (!it.published_date && it.publishedDate) it.published_date = it.publishedDate;
   }
 
-  res.json({ providers: all, matches: fullResults });
+  // Per-provider counts and errors only: the snippets carry raw upstream data the caller does not need.
+  const providerSummary = all.map(a => ({ provider: a.provider, count: (a.matches || []).length, error: a.error }));
+  for (const it of fullResults) delete it._raw;
+  res.json({ providers: providerSummary, matches: fullResults });
 });
 
 // Admin endpoints for config — no authentication enforced (LAN use assumed).

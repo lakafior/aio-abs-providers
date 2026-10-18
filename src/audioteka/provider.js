@@ -73,23 +73,24 @@ class AudiotekaProvider {
       const $ = cheerio.load(response.data);
 
       const matches = [];
-      const $books = $('.adtk-item.teaser_teaser__FDajW');
+      // CSS-module class names carry a build hash (teaser_title__hDeCG): match their stable prefix.
+      const $books = $('[class*="teaser_teaser__"]');
 
       $books.each((index, element) => {
         const $book = $(element);
 
-        const title = $book.find('.teaser_title__hDeCG').text().trim();
-        const bookUrl = this.baseUrl + $book.find('.teaser_link__fxVFQ').attr('href');
-        const authors = [$book.find('.teaser_author__LWTRi').text().trim()];
+        const title = $book.find('[class*="teaser_title__"]').text().trim();
+        const bookUrl = this.baseUrl + $book.find('[class*="teaser_link__"]').attr('href');
+        const authors = [$book.find('[class*="teaser_author__"]').text().trim()];
   // try common lazy-load attributes and fallbacks for cover
   // Try several selectors and lazy-load attributes for teaser cover; normalize and clean URL
-  const teaserEl = $book.find('.teaser_coverImage__YMrBt, img.teaser-image, img');
+  const teaserEl = $book.find('[class*="teaser_coverImage__"], img.teaser-image, img');
   let coverSrc = teaserEl.attr('src') || teaserEl.attr('data-src') || teaserEl.attr('data-srcset') || teaserEl.attr('srcset') || teaserEl.find('source').attr('srcset');
   if (coverSrc && typeof coverSrc === 'string' && coverSrc.includes(',')) {
     coverSrc = coverSrc.split(',')[0].trim().split(' ')[0];
   }
   const cover = cleanCoverUrl(coverSrc || null) || null;
-        const rating = parseFloat($book.find('.teaser-footer_rating__TeVOA').text().trim()) || null;
+        const rating = parseFloat($book.find('[class*="teaser-footer_rating__"]').text().trim()) || null;
 
         const id = $book.attr('data-item-id') || bookUrl.split('/').pop();
 
@@ -402,7 +403,8 @@ class AudiotekaProvider {
         duration: durationInMinutes,
         publisher,
         description,
-        type,
+        // The page's "Typ" (e.g. "Audiobook", "Słuchowisko"); `type` stays "audiobook" for filtering.
+        productType: type || undefined,
         genres,
         series: [],
         tags: series,

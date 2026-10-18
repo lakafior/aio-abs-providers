@@ -55,7 +55,27 @@ Searches multiple providers (lubimyczytac, audioteka, storytel, ...) and returns
   - GET `/admin/config` — read config
   - PUT `/admin/config` — save config (body: full config JSON)
   - GET `/admin/providers/meta` — provider metadata (supported languages, etc.)
-  - GET `/search?query=...&author=...&lang=...` — perform search, returns `matches` array (merged items include `_provider: "merged"` and `_mergedFrom` / `_mergedFieldSources`)
+  - GET `/search?query=...&author=...&format=...` — perform search, returns `matches` array (merged items include `_provider: "merged"` and `_mergedFrom` / `_mergedFieldSources`)
+    - `format=audiobook` returns only audiobooks, `format=ebook` (or `book`) only books; without it both (what Audiobookshelf gets). Every match has `type`: `audiobook` or `book`.
+
+## Providers
+
+| Provider | Kind | Notes |
+|---|---|---|
+| `lubimyczytac` | books and audiobooks | detail pages fetched only for candidates above the similarity threshold |
+| `audioteka` | audiobooks | `pl` or `cz` |
+| `storytel` | books and audiobooks (one result per edition) | `language` = Storytel market (`pl`, `sv`, …) |
+| `audible` | audiobooks | Audible's catalog API, no key; `language` = store (`us`, `uk`, `de`, `fr`, `it`, `es`, `ca`, `au`, `in`, `jp`) |
+
+Titles and authors are compared without case, diacritics or punctuation, so `wiedzmin` finds `Wiedźmin.`.
+
+## API key
+
+Set `API_KEY` in the environment to require it on every endpoint (do this before exposing the backbone to the internet, e.g. through a Cloudflare tunnel: the admin endpoints rewrite the config). Clients send it as `Authorization: <key>` (Audiobookshelf's and Dove's "key" field) or `Authorization: Bearer <key>`; the admin and search pages take it from their URL: `/admin?key=<key>`, `/search-ui?key=<key>`.
+
+## Dove
+
+Dove (iOS) uses the backbone as a book metadata provider: Settings › Search and metadata › Book metadata › Add provider, address `https://<your host>`, key = `API_KEY`. Dove sends `format=audiobook|ebook` for its Audiobooks and Books searches.
 
 Example search via CLI:
 ```bash
@@ -76,8 +96,10 @@ services:
       - "4000:4000"
     environment:
       - NODE_ENV=production
+      - API_KEY=change-me   # required once the port or a tunnel makes it reachable from outside
     volumes:
-      - ./src/config:/src/config
+      # The app reads /app/src/config; copy src/config (config.json + schema.json) here first.
+      - ./src/config:/app/src/config
       - ./logs:/logs
     restart: unless-stopped
 ```

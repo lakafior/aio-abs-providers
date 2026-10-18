@@ -32,6 +32,15 @@
           "pl"
         ]
       }
+    },
+    "audible": {
+      "enabled": true,
+      "priority": 12,
+      "language": "us",
+      "concurrency": 1,
+      "timeoutMs": 10000,
+      "maxResults": 3,
+      "extra": {}
     }
   },
   "global": {

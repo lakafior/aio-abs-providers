@@ -70,13 +70,15 @@ class StorytelProvider {
      * @param bookData
      * @returns {{title: (string|string), subtitle: *, author: (string|string), language: (string|string), genres: (*[]|undefined), tags: undefined, series: null, cover: string, duration: (number|undefined), narrator: (*|undefined), description: (string|string), publisher: (string|string), publishedYear: string | undefined, isbn: (string|string)}|null}
      */
-    formatBookMetadata(bookData) {
-        const slb = bookData.slb;
+    formatBookMetadata(bookData, format) {
+        // Book details answer `{slb: {book, abook, ebook}}`; search items are `{book, abook, ebook}`.
+        const slb = (bookData && bookData.slb) || bookData;
         if (!slb || !slb.book) return null;
 
         const book = slb.book;
-        const abook = slb.abook;
-        const ebook = slb.ebook;
+        // Only the asked edition: an entry with both is listed once per format.
+        const abook = format === 'book' ? null : slb.abook;
+        const ebook = format === 'audiobook' ? null : slb.ebook;
 
         if (!abook && !ebook) return null;
 
@@ -231,7 +233,8 @@ class StorytelProvider {
             language: this.ensureString(book.language?.isoValue || this.locale),
             genres: genres.length > 0 ? genres : undefined,
             series: seriesInfo,
-            cover: this.upgradeCoverUrl(book.largeCover),
+            type: abook ? 'audiobook' : 'book',
+            cover: this.upgradeCoverUrl(abook ? book.largeCover : (book.largeCoverE && !book.largeCoverE.includes('nocover') ? book.largeCoverE : book.largeCover)),
             duration: abook ? (abook.length ? Math.floor(abook.length / 60000) : undefined) : undefined,
             narrator: abook ? abook.narratorAsString || undefined : undefined,
             description: this.ensureString(abook ? abook.description : ebook?.description),
@@ -310,23 +313,26 @@ class StorytelProvider {
                         const limitedBooks = books.slice(0, 10);
             console.log(`Found ${books.length} books in search results`);
 
-            // Return lightweight snippets only; Backbone will fetch full metadata when needed
-            const matches = limitedBooks.map(bookItem => {
+            // Return lightweight snippets only; Backbone will fetch full metadata when needed.
+            // One snippet per edition: an item may carry the audiobook (`abook`), the ebook (`ebook`) or both.
+            const matches = limitedBooks.flatMap(bookItem => {
                 const candidate = bookItem.book || bookItem;
                 const bookId = candidate && (candidate.id || candidate.bookId || candidate.book_id || candidate.bookID);
-                if (!bookId) return null;
-                // Provide minimal snippet so backbone can score/cap candidates
-                return {
-                    id: bookId,
+                if (!bookId) return [];
+                const formats = [];
+                if (bookItem.abook) formats.push('audiobook');
+                if (bookItem.ebook) formats.push('book');
+                return formats.map(type => ({
+                    id: `${bookId}-${type}`,
                     title: candidate.name || candidate.title || null,
-                    authors: candidate.authors || (candidate.authorsAsString ? [candidate.authorsAsString] : []),
-                    url: null, // Storytel uses API for details
+                    authors: (candidate.authors || []).map(a => (a && a.name) || a).filter(a => typeof a === 'string'),
+                    url: bookItem.shareUrl || null,
                     source: { id: 'storytel', description: 'Storytel', link: 'https://storytel.com' },
-                    type: candidate.type || 'audiobook',
-                    // Save the raw candidate so getFullMetadata can use it if needed
-                    _raw: candidate
-                };
-            }).filter(Boolean);
+                    type,
+                    // The whole search item: getFullMetadata formats it without another request.
+                    _raw: bookItem
+                }));
+            });
 
             const result = { matches };
             cache.set(cacheKey, result);
@@ -370,11 +376,21 @@ class StorytelProvider {
     async getFullMetadata(snippet) {
         if (!snippet) return null;
         const raw = snippet._raw;
-        if (!raw) {
-            // fallback: try to fetch book details by id
-            return this.formatBookMetadata(await this.getBookDetails(snippet.id, this.locale));
-        }
-        return this.formatBookMetadata(raw);
+        const full = raw
+            ? this.formatBookMetadata(raw, snippet.type)
+            // fallback: fetch book details by id
+            : this.formatBookMetadata(await this.getBookDetails(String(snippet.id).split('-')[0], this.locale), snippet.type);
+        if (!full) return null;
+        // Keep what the backbone scored and tagged the snippet with.
+        return {
+            ...full,
+            id: snippet.id,
+            url: snippet.url || undefined,
+            source: snippet.source,
+            similarity: snippet.similarity,
+            _provider: snippet._provider,
+            _providerPriority: snippet._providerPriority,
+        };
     }
 
 }

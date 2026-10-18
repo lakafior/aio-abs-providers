@@ -131,27 +131,9 @@ class LubimyCzytacProvider {
         })
         .slice(0, 20);
 
-      const fullMetadata = await Promise.all(
-        allMatches.map((match) => this.getFullMetadata(match)),
-      );
-
-      const adjustedMetadata = fullMetadata
-        .map((match) => {
-          let adjustedSimilarity = match.similarity;
-
-          // Penalty for missing ISBN
-          if (!match.identifiers?.isbn || match.identifiers.isbn === "") {
-            adjustedSimilarity *= 0.99;
-          }
-
-          return { ...match, similarity: adjustedSimilarity };
-        })
-        .sort((a, b) => {
-          if (b.similarity !== a.similarity) return b.similarity - a.similarity;
-          const typeValueA = a.type === "audiobook" ? 1 : 0;
-          const typeValueB = b.type === "audiobook" ? 1 : 0;
-          return typeValueB - typeValueA;
-        });
+      // Snippets only: the backbone scores them and fetches detail pages (getFullMetadata) for the few
+      // candidates above its threshold, instead of 20 detail pages per search here.
+      const adjustedMetadata = allMatches;
 
       const result = { matches: adjustedMetadata };
       this.cache.set(cacheKey, result);

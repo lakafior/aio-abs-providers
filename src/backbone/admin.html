@@ -58,6 +58,10 @@
   </div>
 
   <script>
+    // With API_KEY set on the server, open this page as ...?key=<key>; the key goes along to the API.
+    const pageKey = new URLSearchParams(location.search).get('key');
+    const withKey = (url) => pageKey ? url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(pageKey) : url;
+
   let currentConfig = null;
 
     function setStatus(msg, isError = false) {
@@ -70,7 +74,7 @@
 
     async function fetchConfig() {
       setStatus('Loading...');
-  const res = await fetch('/admin/config');
+  const res = await fetch(withKey('/admin/config'));
       if (!res.ok) {
         setStatus('Failed to load config: ' + res.statusText, true);
         return null;
@@ -164,7 +168,7 @@
       const cfg = await fetchConfig();
       let meta = [];
       try {
-        const r = await fetch('/admin/providers/meta');
+        const r = await fetch(withKey('/admin/providers/meta'));
         if (r.ok) meta = await r.json();
       } catch (e) {
         // ignore
@@ -244,7 +248,7 @@
   }
 
         const headers = { 'Content-Type': 'application/json' };
-      const res = await fetch('/admin/config', { method: 'PUT', headers, body: JSON.stringify(newCfg) });
+      const res = await fetch(withKey('/admin/config'), { method: 'PUT', headers, body: JSON.stringify(newCfg) });
       if (!res.ok) {
         let err = null;
         try { err = await res.json(); } catch(e) { /* ignore */ }
@@ -258,7 +262,7 @@
         currentConfig = body.config;
         // fetch provider metadata and re-render so language selects stay provider-specific
           try {
-          const rmeta = await fetch('/admin/providers/meta');
+          const rmeta = await fetch(withKey('/admin/providers/meta'));
           let meta = [];
           if (rmeta.ok) meta = await rmeta.json();
           renderConfig(currentConfig, meta);

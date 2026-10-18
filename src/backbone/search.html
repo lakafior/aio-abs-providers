@@ -43,6 +43,10 @@
   <div id="results"></div>
 
   <script>
+    // With API_KEY set on the server, open this page as ...?key=<key>; the key goes along to the API.
+    const pageKey = new URLSearchParams(location.search).get('key');
+    const withKey = (url) => pageKey ? url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(pageKey) : url;
+
     function setStatus(msg, isError) {
       const el = document.getElementById('status');
       el.textContent = msg;
@@ -150,7 +154,7 @@
         const params = new URLSearchParams();
         params.set('query', q);
         if (author) params.set('author', author);
-        const res = await fetch('/search?' + params.toString());
+        const res = await fetch(withKey('/search?' + params.toString()));
         if (!res.ok) {
           const txt = await res.text();
           setStatus('Search error: ' + res.status + ' ' + txt, true);
