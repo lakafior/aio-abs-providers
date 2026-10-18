@@ -133,7 +133,14 @@ app.get('/search', async (req, res) => {
 
   const scored = combined.map(m => {
     const title = norm(m.title);
-    const titleSimilarity = stringSimilarity.compareTwoStrings(title, cleanedQuery);
+    // Free-text callers (Dove) put the author in the query: "andy weir project hail mary" should still match
+    // "Project Hail Mary" by Andy Weir, so the query is also compared with author + title, both ways round.
+    const names = norm((m.authors || []).join(' '));
+    const titleSimilarity = Math.max(
+      stringSimilarity.compareTwoStrings(title, cleanedQuery),
+      names ? stringSimilarity.compareTwoStrings(`${names} ${title}`, cleanedQuery) : 0,
+      names ? stringSimilarity.compareTwoStrings(`${title} ${names}`, cleanedQuery) : 0,
+    );
 
     let combinedSimilarity = titleSimilarity;
     if (cleanedAuthor && Array.isArray(m.authors) && m.authors.length) {
