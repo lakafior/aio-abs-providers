@@ -3,3 +3,6 @@ npm-debug.log
 .git
 .vscode
 logs
+test
+docs
+.claude
