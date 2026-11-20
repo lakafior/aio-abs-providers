@@ -2,7 +2,7 @@
 FROM node:24-bullseye-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --production
+RUN npm ci --omit=dev
 
 FROM node:24-bullseye-slim AS runner
 WORKDIR /app
@@ -14,4 +14,5 @@ RUN chown -R app:app /app
 USER app
 ENV NODE_ENV=production
 EXPOSE 4000
-CMD ["npm", "run", "start:backbone"]
+# node itself as PID 1, so SIGTERM from `docker stop` reaches the server
+CMD ["node", "src/backbone/server.js"]
