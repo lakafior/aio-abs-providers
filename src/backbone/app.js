@@ -80,10 +80,8 @@ function createApp({ store, env = process.env, loadProvider = loadProviderClass,
   // Liveness, without the key: says nothing about the config beyond which providers run.
   app.get('/healthz', (req, res) => {
     const status = store.status();
-    let providers = [];
-    try {
-      providers = getRuntime().providers.map((p) => p.name);
-    } catch (err) { /* reported below */ }
+    // From the config, without loading the provider modules: this must answer at once after start.
+    const providers = Object.entries(store.get().providers || {}).filter(([, opts]) => opts.enabled).map(([name]) => name);
     res.json({
       status: 'ok',
       uptimeMs: Date.now() - startedAt,
