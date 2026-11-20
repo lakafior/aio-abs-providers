@@ -1,198 +1,216 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Backbone Search Panel</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backbone · Search</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 1rem; }
-    label { display: inline-block; width: 70px; }
-    input[type=text] { width: 320px; }
-    button { margin-left: 6px; }
-    .result { border: 1px solid #ddd; padding: 8px; margin: 8px 0; display: flex; gap: 12px; }
-  .cover { width: 120px; height: 120px; background: #f6f6f6; border: 1px solid #eee; display: block; }
-  .result { position: relative; }
-  .cover-container { position: relative; width: 120px; height: 120px; flex: 0 0 120px; }
-  .badge { position: absolute; left: 6px; top: 6px; background: rgba(0,0,0,0.7); color: #fff; padding: 2px 6px; font-size: 11px; border-radius: 3px; }
-  /* Audiobook covers are square and should be shown fully (contain) */
-  .cover.audiobook { border-color: #2b8aef; box-shadow: 0 0 0 3px rgba(43,138,239,0.06); object-fit: contain; width: 120px; height: 120px; }
-  /* Book covers are rectangular; allow a taller rectangle */
-  .cover.book { border-color: #777; opacity: 0.95; object-fit: cover; width: 120px; height: 180px; }
-  .cover.book + .badge { top: 8px; }
-    .meta { flex: 1; }
-    .providersrc { font-size: 0.9rem; color: #666; }
-    pre.json { background: #f7f7f7; padding: 8px; border-radius: 4px; overflow: auto; max-height: 300px; }
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f5f7; --surface: #ffffff; --text: #1d1d1f; --muted: #6e6e73; --line: #e3e3e8;
+      --accent: #2563eb; --accent-text: #ffffff; --field: #ffffff; --chip: #eef0f4; --ok: #15803d; --bad: #b91c1c;
+      --audio: #7c3aed; --book: #0f766e; --merged: #b45309;
+      --radius: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #111113; --surface: #1c1c1f; --text: #f2f2f4; --muted: #9a9aa2; --line: #2e2e33;
+        --accent: #5b8cff; --accent-text: #0b0b0d; --field: #232327; --chip: #2a2a2f; --ok: #4ade80; --bad: #f87171;
+        --audio: #a78bfa; --book: #2dd4bf; --merged: #fbbf24; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+    form { display: grid; grid-template-columns: 2fr 1.4fr auto auto; gap: 10px; align-items: end; }
+    .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .field > span { font-size: 12px; color: var(--muted); }
+    input[type="text"], select { width: 100%; padding: 9px 11px; font: inherit; color: var(--text); background: var(--field); border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+    input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button { font: inherit; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+    button.link { border: 0; background: none; padding: 0; color: var(--accent); font-size: 13px; }
+    button:disabled { opacity: .6; cursor: default; }
+    #status { margin: 14px 2px 0; font-size: 13px; color: var(--muted); min-height: 20px; }
+    #status.error { color: var(--bad); }
+    #sources { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+    #results { display: grid; gap: 12px; margin-top: 14px; }
+    .result { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 16px; }
+    .cover { width: 112px; aspect-ratio: 1; border-radius: 8px; background: var(--chip); object-fit: contain; display: block; }
+    .cover.book { aspect-ratio: 2 / 3; object-fit: cover; }
+    .result h3 { margin: 0 0 2px; font-size: 17px; line-height: 1.3; }
+    .result h3 small { font-weight: 400; color: var(--muted); font-size: 14px; }
+    .by { color: var(--muted); margin-bottom: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .chip { background: var(--chip); border-radius: 12px; padding: 2px 9px; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
+    .chip.kind-audiobook { color: var(--audio); font-weight: 600; }
+    .chip.kind-book { color: var(--book); font-weight: 600; }
+    .chip.merged { color: var(--merged); font-weight: 600; }
+    .chip.error { color: var(--bad); }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0 0 8px; font-size: 13px; }
+    dt { color: var(--muted); }
+    dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .desc { margin: 0 0 8px; font-size: 14px; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+    .desc.open { display: block; }
+    .actions { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    pre.json { background: var(--chip); padding: 10px; border-radius: 8px; overflow: auto; max-height: 320px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 8px 0 0; grid-column: 1 / -1; }
+    @media (max-width: 640px) {
+      form { grid-template-columns: 1fr 1fr; }
+      form .field:first-child, form button { grid-column: 1 / -1; }
+      .result { grid-template-columns: 80px minmax(0, 1fr); gap: 12px; }
+      .cover { width: 80px; }
+    }
   </style>
 </head>
 <body>
-  <h1>Search Panel</h1>
-  <div>
-    <label>Title</label>
-    <input id="q" type="text" placeholder="Title (required)" />
-  </div>
-  <div style="margin-top:8px">
-    <label>Author</label>
-    <input id="author" type="text" placeholder="Author (optional)" />
-  </div>
-  <div style="margin-top:8px">
-    <button id="search">Search</button>
-    <button id="clear">Clear</button>
-    <span id="status" style="margin-left:8px;color:green"></span>
-  </div>
+  <div class="wrap">
+    <header>
+      <h1>Search</h1>
+      <a id="adminLink" href="/admin">Settings →</a>
+    </header>
 
-  <h2 style="margin-top:18px">Results</h2>
-  <div id="results"></div>
+    <form id="form" class="card" autocomplete="off">
+      <label class="field"><span>Title</span><input id="q" type="text" placeholder="Title (required)" required></label>
+      <label class="field"><span>Author</span><input id="author" type="text" placeholder="Optional"></label>
+      <label class="field"><span>Show</span>
+        <select id="format"><option value="">Everything</option><option value="audiobook">Audiobooks</option><option value="ebook">Books</option></select></label>
+      <button id="search" class="primary" type="submit">Search</button>
+    </form>
+
+    <div id="status" role="status"></div>
+    <div id="sources"></div>
+    <div id="results"></div>
+  </div>
 
   <script>
     // With API_KEY set on the server, open this page as ...?key=<key>; the key goes along to the API.
     const pageKey = new URLSearchParams(location.search).get('key');
     const withKey = (url) => pageKey ? url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(pageKey) : url;
+    document.getElementById('adminLink').href = withKey('/admin');
+
+    const $ = (id) => document.getElementById(id);
+    const el = (tag, props = {}, children = []) => {
+      const node = Object.assign(document.createElement(tag), props);
+      for (const child of [].concat(children)) node.append(child);
+      return node;
+    };
 
     function setStatus(msg, isError) {
-      const el = document.getElementById('status');
-      el.textContent = msg;
-      el.style.color = isError ? 'red' : 'green';
-    }
-
-    function formatDate(d) {
-      if (!d) return '';
-      try { return new Date(d).toLocaleDateString(); } catch(e) { return String(d); }
+      $('status').textContent = msg;
+      $('status').classList.toggle('error', !!isError);
     }
 
     // Descriptions come from other sites as HTML: show their text only, never run their markup.
     function plainText(html) {
       const doc = new DOMParser().parseFromString(String(html || '').replace(/<br\s*\/?>|<\/p>/gi, '\n'), 'text/html');
-      return doc.body.textContent || '';
+      return (doc.body.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
     }
 
-    function labelled(parent, label, value) {
-      const b = document.createElement('strong'); b.textContent = label + ': ';
-      parent.appendChild(b); parent.appendChild(document.createTextNode((value || '') + '  '));
+    function duration(minutes) {
+      const h = Math.floor(minutes / 60), m = Math.round(minutes % 60);
+      return h ? `${h} h ${m} min` : `${m} min`;
     }
 
     function renderMatch(m) {
-      const div = document.createElement('div');
-      div.className = 'result';
+      const isAudio = (m.type || '').toLowerCase() === 'audiobook';
+      const card = el('article', { className: 'card result' });
 
-  const coverWrap = document.createElement('div'); coverWrap.className = 'cover-container';
-  const img = document.createElement('img');
-  img.className = 'cover';
-  if (/^https?:\/\//i.test(m.cover || '')) img.src = m.cover; else img.style.visibility = 'hidden';
-  img.referrerPolicy = 'no-referrer';
-  img.alt = m.title || '';
-  img.onerror = function() { this.style.visibility = 'hidden'; };
-  // Decide audiobook vs book: explicit type or provider-specific fallback (Audioteka is audiobooks)
-  const isAudio = (m.type && m.type.toLowerCase() === 'audiobook') || (m._provider && m._provider.toLowerCase() === 'audioteka');
-  const badge = document.createElement('span'); badge.className = 'badge';
-  badge.textContent = isAudio ? 'AUDIOBOOK' : 'BOOK';
-  img.classList.add(isAudio ? 'audiobook' : 'book');
-  coverWrap.classList.add(isAudio ? 'audiobook' : 'book');
+      const img = el('img', { className: 'cover ' + (isAudio ? 'audiobook' : 'book'), alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' });
+      if (/^https?:\/\//i.test(m.cover || '')) img.src = m.cover;
+      img.onerror = () => { img.removeAttribute('src'); };
 
-      const meta = document.createElement('div');
-      meta.className = 'meta';
+      const body = el('div');
+      const title = el('h3', { textContent: m.title || '(no title)' });
+      if (m.subtitle) title.append(' ', el('small', { textContent: m.subtitle }));
+      body.append(title);
+      body.append(el('div', { className: 'by', textContent: (m.authors && m.authors.join(', ')) || m.author || '' }));
 
-      const title = document.createElement('h3');
-      title.textContent = m.title || '(no title)';
-      meta.appendChild(title);
-
-      const prov = document.createElement('div');
-      prov.className = 'providersrc';
-      prov.textContent = `Provider: ${m._provider || (m.source && m.source.id) || 'unknown'} — type: ${m.type || ''} — similarity: ${typeof m.similarity === 'number' ? m.similarity.toFixed(3) : ''}`;
-      meta.appendChild(prov);
-
-      const authors = document.createElement('div');
-      authors.textContent = 'Authors: ' + ((m.authors && m.authors.join(', ')) || '');
-      meta.appendChild(authors);
-
-      if (m.narrator || m.lector) {
-        const narr = document.createElement('div');
-        narr.textContent = 'Narrator: ' + (m.narrator || m.lector || '');
-        meta.appendChild(narr);
+      const chips = el('div', { className: 'chips' });
+      chips.append(el('span', { className: 'chip kind-' + (isAudio ? 'audiobook' : 'book'), textContent: isAudio ? 'Audiobook' : 'Book' }));
+      const provider = m._provider || (m.source && m.source.id) || 'unknown';
+      if (provider === 'merged') {
+        chips.append(el('span', { className: 'chip merged', textContent: 'Merged: ' + [...new Set((m._mergedFrom || []).map((i) => i.provider))].join(' + ') }));
+      } else {
+        chips.append(el('span', { className: 'chip', textContent: provider }));
       }
+      if (typeof m.similarity === 'number') chips.append(el('span', { className: 'chip', textContent: Math.round(m.similarity * 100) + '% match' }));
+      body.append(chips);
 
-      if (m.description) {
-        const desc = document.createElement('p');
-        const descText = plainText(m.description);
-        desc.style.whiteSpace = 'pre-line';
-        desc.textContent = descText.length > 1000 ? (descText.slice(0,1000) + '...') : descText;
-        meta.appendChild(desc);
+      const facts = [
+        ['Narrator', m.narrator],
+        ['Series', (m.series || []).map((s) => s.series + (s.sequence ? ' #' + s.sequence : '')).join(', ')],
+        ['Length', m.duration ? duration(m.duration) : ''],
+        ['Publisher', [m.publisher, m.publishedYear].filter(Boolean).join(', ')],
+        ['Language', m.language],
+        ['Genres', (m.genres || []).join(', ')],
+        ['Tags', (m.tags || []).slice(0, 12).join(', ')],
+        ['ISBN', m.isbn],
+        ['ASIN', m.asin],
+      ].filter(([, value]) => value);
+      if (facts.length) body.append(el('dl', {}, facts.flatMap(([label, value]) => [el('dt', { textContent: label }), el('dd', { textContent: value })])));
+
+      const actions = el('div', { className: 'actions' });
+      const text = plainText(m.description);
+      if (text) {
+        const desc = el('p', { className: 'desc', textContent: text });
+        body.append(desc);
+        if (text.length > 280) {
+          const more = el('button', { className: 'link', type: 'button', textContent: 'More' });
+          more.addEventListener('click', () => { more.textContent = desc.classList.toggle('open') ? 'Less' : 'More'; });
+          actions.append(more);
+        }
       }
+      if (/^https?:\/\//i.test(m.url || '')) actions.append(el('a', { href: m.url, target: '_blank', rel: 'noopener noreferrer', textContent: 'Source page ↗' }));
+      const raw = el('pre', { className: 'json', hidden: true, textContent: JSON.stringify(m, null, 2) });
+      const rawBtn = el('button', { className: 'link', type: 'button', textContent: 'JSON' });
+      rawBtn.addEventListener('click', () => { raw.hidden = !raw.hidden; });
+      actions.append(rawBtn);
+      body.append(actions);
 
-      const details = document.createElement('div');
-      labelled(details, 'Publisher', m.publisher);
-      labelled(details, 'Published', m.publishedDate ? formatDate(m.publishedDate) : m.publishedYear);
-      labelled(details, 'Series', (m.series||[]).map(s => s.series + (s.sequence ? ' #' + s.sequence : '')).join(', '));
-      details.appendChild(document.createElement('br'));
-      labelled(details, 'Genres', (m.genres||[]).join(', '));
-      labelled(details, 'Tags', (m.tags||[]).join(', '));
-      meta.appendChild(details);
-
-      // identifiers
-      if (m.identifiers) {
-        const ids = document.createElement('div');
-        labelled(ids, 'Identifiers', Object.entries(m.identifiers).map(([k,v])=>`${k}: ${v}`).join(' | '));
-        meta.appendChild(ids);
-      }
-
-      // link
-      if (m.url) {
-        const a = document.createElement('a');
-        if (/^https?:\/\//i.test(m.url)) a.href = m.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.textContent = 'Open source page';
-        meta.appendChild(document.createElement('div')).appendChild(a);
-      }
-
-      // raw toggle
-      const rawBtn = document.createElement('button'); rawBtn.textContent = 'Show JSON'; rawBtn.style.marginTop = '8px';
-      const rawPre = document.createElement('pre'); rawPre.className = 'json'; rawPre.style.display = 'none'; rawPre.textContent = JSON.stringify(m, null, 2);
-      rawBtn.addEventListener('click', () => {
-        rawPre.style.display = rawPre.style.display === 'none' ? 'block' : 'none';
-        rawBtn.textContent = rawPre.style.display === 'none' ? 'Show JSON' : 'Hide JSON';
-      });
-      meta.appendChild(rawBtn);
-      meta.appendChild(rawPre);
-
-      coverWrap.appendChild(img);
-      coverWrap.appendChild(badge);
-      div.appendChild(coverWrap);
-      div.appendChild(meta);
-      return div;
+      card.append(img, body, raw);
+      return card;
     }
 
     async function doSearch() {
-      const q = document.getElementById('q').value.trim();
-      const author = document.getElementById('author').value.trim();
+      const q = $('q').value.trim();
+      const author = $('author').value.trim();
+      const format = $('format').value;
       if (!q) return setStatus('Title is required', true);
-      setStatus('Searching...', false);
-      document.getElementById('results').innerHTML = '';
+      setStatus('Searching…');
+      $('search').disabled = true;
+      $('results').replaceChildren();
+      $('sources').replaceChildren();
       try {
-        const params = new URLSearchParams();
-        params.set('query', q);
+        const params = new URLSearchParams({ query: q });
         if (author) params.set('author', author);
+        if (format) params.set('format', format);
+        const started = performance.now();
         const res = await fetch(withKey('/search?' + params.toString()));
         if (!res.ok) {
-          const txt = await res.text();
-          setStatus('Search error: ' + res.status + ' ' + txt, true);
-          return;
+          return setStatus(res.status === 401 ? 'API key required (open as /search-ui?key=…)' : 'Search error: ' + res.status, true);
         }
         const data = await res.json();
         const matches = data.matches || [];
-        if (!matches.length) setStatus('No results', false);
-        else setStatus('Found ' + matches.length + ' results', false);
-        const container = document.getElementById('results');
-        for (const m of matches) {
-          container.appendChild(renderMatch(m));
-        }
+        const seconds = ((performance.now() - started) / 1000).toFixed(1);
+        setStatus(matches.length ? `${matches.length} result${matches.length === 1 ? '' : 's'} in ${seconds} s` : `No results (${seconds} s)`);
+        // What each source answered: how many titles it listed, or why it is missing.
+        $('sources').replaceChildren(...(data.providers || []).map((p) => el('span', {
+          className: 'chip' + (p.error ? ' error' : ''),
+          textContent: p.error ? `${p.provider}: ${p.error}` : `${p.provider}: ${p.count} found`,
+        })));
+        $('results').replaceChildren(...matches.map(renderMatch));
       } catch (err) {
         setStatus('Error: ' + (err.message || err), true);
+      } finally {
+        $('search').disabled = false;
       }
     }
 
-    document.getElementById('search').addEventListener('click', doSearch);
-    document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
-    document.getElementById('clear').addEventListener('click', () => { document.getElementById('q').value=''; document.getElementById('author').value=''; document.getElementById('results').innerHTML=''; setStatus(''); });
-
+    $('form').addEventListener('submit', (e) => { e.preventDefault(); doSearch(); });
+    $('q').focus();
   </script>
 </body>
 </html>

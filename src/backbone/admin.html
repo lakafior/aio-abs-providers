@@ -1,340 +1,335 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Backbone Config Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Backbone · Settings</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 1rem; }
-    .provider { border: 1px solid #ccc; padding: 0.5rem; margin-bottom: 0.5rem; }
-    label { display: inline-block; width: 150px; }
-    input[type="text"], select { width: 200px; }
-    .controls { margin-top: 1rem; }
-    button { margin-right: 0.5rem; }
-    #status { margin-left: 1rem; color: green; }
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f5f7; --surface: #ffffff; --text: #1d1d1f; --muted: #6e6e73; --line: #e3e3e8;
+      --accent: #2563eb; --accent-text: #ffffff; --field: #ffffff; --ok: #15803d; --bad: #b91c1c;
+      --radius: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #111113; --surface: #1c1c1f; --text: #f2f2f4; --muted: #9a9aa2; --line: #2e2e33;
+        --accent: #5b8cff; --accent-text: #0b0b0d; --field: #232327; --ok: #4ade80; --bad: #f87171; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 96px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+    h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 28px 0 10px; font-weight: 600; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .note { color: var(--muted); font-size: 13px; margin: 0; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    .provider.off .fields { opacity: .45; }
+    .provider-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+    .provider-head h3 { margin: 0; font-size: 16px; }
+    .provider-head small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+    .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .field.wide { grid-column: 1 / -1; }
+    .field.inline { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+    .field > span { font-size: 12px; color: var(--muted); }
+    input[type="number"], input[type="text"], select, textarea {
+      width: 100%; padding: 7px 9px; font: inherit; color: var(--text); background: var(--field);
+      border: 1px solid var(--line); border-radius: 8px; min-width: 0;
+    }
+    textarea { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+    input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    details { margin-top: 12px; }
+    summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+    details .fields { margin-top: 10px; }
+    .switch { position: relative; display: inline-block; width: 40px; height: 24px; flex: none; }
+    .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+    .switch i { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: background .15s; pointer-events: none; }
+    .switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+    .switch input:checked + i { background: var(--accent); }
+    .switch input:checked + i::after { transform: translateX(16px); }
+    .switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+    .row:first-child { border-top: 0; padding-top: 0; }
+    .rows .row:last-child { padding-bottom: 0; }
+    .row .label { min-width: 0; }
+    .row .label b { font-weight: 500; display: block; }
+    .row .label small { color: var(--muted); font-size: 12px; }
+    .row .control { display: flex; align-items: center; gap: 10px; flex: none; }
+    .row input[type="range"] { width: 180px; accent-color: var(--accent); }
+    .row input[type="number"] { width: 110px; }
+    .row output { min-width: 150px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+    .prefs { display: grid; gap: 10px 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 4px; }
+    .prefs.disabled { opacity: .45; }
+    .bar { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line); }
+    .bar-inner { max-width: 980px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+    button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+    button:hover { filter: brightness(0.96); }
+    #status { margin-left: 6px; font-size: 13px; color: var(--ok); }
+    #status.error { color: var(--bad); }
+    #previewResult { margin: 10px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
+    @media (max-width: 560px) {
+      .row { flex-direction: column; align-items: stretch; gap: 8px; }
+      .row .control { justify-content: space-between; }
+      .row input[type="range"] { flex: 1; width: auto; }
+      .row output { min-width: 0; }
+    }
   </style>
 </head>
 <body>
-  <h1>Backbone Config Editor</h1>
-  <p>Anyone who can reach this page can change the config: set <code>API_KEY</code> when the port is reachable by others.</p>
+  <div class="wrap">
+    <header>
+      <h1>Settings</h1>
+      <a id="searchLink" href="/search-ui">Search →</a>
+    </header>
+    <p class="note">Anyone who can open this page can change the config. Set <code>API_KEY</code> when the port is reachable by others.</p>
 
-  <div id="providers"></div>
+    <h2>Sources</h2>
+    <div id="providers" class="grid"></div>
 
-  <h3>Global</h3>
-  <div>
-    <label>maxProvidersParallel:</label>
-    <input id="global_maxProvidersParallel" type="number" min="1" value="3" />
-  </div>
-  <div>
-    <label>Allow Books:</label>
-    <input id="global_allowBooks" type="checkbox" />
-  </div>
-  <div>
-    <label>Allow Audiobooks:</label>
-    <input id="global_allowAudiobooks" type="checkbox" />
-  </div>
-  <div style="margin-top:8px">
-    <label>Title / Author balance:</label>
-    <input id="global_titleWeight" type="range" min="0" max="100" value="60" />
-    <span id="titleWeightLabel">Title 60% / Author 40%</span>
-  </div>
-  <div style="margin-top:8px">
-    <label>Similarity threshold:</label>
-    <input id="global_similarityThreshold" type="range" min="0" max="100" value="30" />
-    <span id="similarityThresholdLabel">>= 30%</span>
-  </div>
-  <div style="margin-top:8px">
-    <label>Merge best results:</label>
-    <input id="global_mergeBestResults" type="checkbox" />
-  </div>
-  <div style="margin-top:8px">
-    <label>Merge field preferences:</label>
-    <div id="mergePrefs"></div>
+    <h2>Search</h2>
+    <div class="card rows">
+      <label class="row"><span class="label"><b>Audiobooks</b><small>Return audiobooks</small></span>
+        <span class="control"><span class="switch"><input id="global_allowAudiobooks" type="checkbox"><i></i></span></span></label>
+      <label class="row"><span class="label"><b>Books</b><small>Return printed books and ebooks</small></span>
+        <span class="control"><span class="switch"><input id="global_allowBooks" type="checkbox"><i></i></span></span></label>
+      <label class="row"><span class="label"><b>Title / author balance</b><small>How much the title counts when an author is given</small></span>
+        <span class="control"><input id="global_titleWeight" type="range" min="0" max="100" value="60"><output id="titleWeightLabel"></output></span></label>
+      <label class="row"><span class="label"><b>Similarity threshold</b><small>Results scoring lower are dropped</small></span>
+        <span class="control"><input id="global_similarityThreshold" type="range" min="0" max="100" value="30"><output id="similarityThresholdLabel"></output></span></label>
+      <label class="row"><span class="label"><b>Search time limit (ms)</b><small>Slower sources are left out; Audiobookshelf waits 10000</small></span>
+        <span class="control"><input id="global_searchTimeoutMs" type="number" min="1000" max="60000" step="500"></span></label>
+      <label class="row"><span class="label"><b>Sources asked at once</b></span>
+        <span class="control"><input id="global_maxProvidersParallel" type="number" min="1"></span></label>
+    </div>
+
+    <h2>Merging</h2>
+    <div class="card">
+      <label class="row"><span class="label"><b>Merge best results</b><small>Put one combined result first, built from the same title, author and kind across sources</small></span>
+        <span class="control"><span class="switch"><input id="global_mergeBestResults" type="checkbox"><i></i></span></span></label>
+      <div class="row"><span class="label"><b>Take each field from</b><small>"automatic" = the source with the highest priority that has it</small></span></div>
+      <div id="mergePrefs" class="prefs"></div>
+      <details>
+        <summary>Order of sources for equal results</summary>
+        <ol id="previewResult"></ol>
+      </details>
+    </div>
   </div>
 
-  <div class="controls">
+  <div class="bar"><div class="bar-inner">
+    <button id="save" class="primary">Save</button>
     <button id="reload">Reload</button>
-    <button id="save">Save</button>
-    <span id="status"></span>
-  </div>
+    <span id="status" role="status"></span>
+  </div></div>
 
   <script>
     // With API_KEY set on the server, open this page as ...?key=<key>; the key goes along to the API.
     const pageKey = new URLSearchParams(location.search).get('key');
     const withKey = (url) => pageKey ? url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(pageKey) : url;
+    document.getElementById('searchLink').href = withKey('/search-ui');
 
-  let currentConfig = null;
+    const $ = (id) => document.getElementById(id);
+    const el = (tag, props = {}, children = []) => {
+      const node = Object.assign(document.createElement(tag), props);
+      for (const child of [].concat(children)) node.append(child);
+      return node;
+    };
+    const PREF_FIELDS = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language','genres','tags'];
+
+    let currentConfig = null;
 
     function setStatus(msg, isError = false) {
-      const el = document.getElementById('status');
-      el.textContent = msg;
-      el.style.color = isError ? 'red' : 'green';
+      const s = $('status');
+      s.textContent = msg;
+      s.classList.toggle('error', isError);
     }
 
-    function setTokenStatus(/* no-op: token removed */) {}
-
-    async function fetchConfig() {
-      setStatus('Loading...');
-  const res = await fetch(withKey('/admin/config'));
-      if (!res.ok) {
-        setStatus('Failed to load config: ' + res.statusText, true);
-        return null;
-      }
-      const cfg = await res.json();
-      setStatus('Loaded');
-      return cfg;
+    function field(label, control, extraClass = '') {
+      return el('label', { className: 'field ' + extraClass }, [el('span', { textContent: label }), control]);
     }
 
-    const LANGS = [
-      { code: 'pl', label: '🇵🇱 pl' },
-      { code: 'en', label: '🇬🇧 en' },
-      { code: 'cz', label: '🇨🇿 cz' },
-      { code: 'de', label: '🇩🇪 de' },
-      { code: 'fr', label: '🇫🇷 fr' }
-    ];
-
-    function makeLanguageSelect(selected, supportedList) {
-      const sel = document.createElement('select');
-      sel.dataset.key = 'language';
-      const options = (supportedList && supportedList.length) ? supportedList.map(code => ({ code, label: code })) : LANGS;
-      for (const opt of options) {
-        const o = document.createElement('option');
-        o.value = opt.code;
-        o.textContent = opt.label || opt.code;
-        sel.appendChild(o);
-      }
-      if (selected && !Array.from(sel.options).some(o => o.value === selected)) {
-        const o = document.createElement('option'); o.value = selected; o.textContent = selected; sel.appendChild(o);
-      }
-      sel.value = selected || '';
-      return sel;
+    function numberInput(key, value, min) {
+      const input = el('input', { type: 'number', min, value });
+      input.dataset.key = key;
+      return input;
     }
 
-    function renderProvider(name, cfg, supported = []) {
-      const div = document.createElement('div');
-      div.className = 'provider';
-      div.dataset.name = name;
+    function renderProvider(name, cfg, meta = {}) {
+      const card = el('div', { className: 'card provider' });
+      card.dataset.name = name;
 
-      const enabled = document.createElement('input'); enabled.type = 'checkbox'; enabled.dataset.key = 'enabled'; enabled.checked = !!cfg.enabled;
-      const language = makeLanguageSelect(cfg.language || '', supported);
-      const priority = document.createElement('input'); priority.type = 'number'; priority.min = 0; priority.dataset.key = 'priority'; priority.value = (typeof cfg.priority === 'number') ? cfg.priority : 0;
-      const concurrency = document.createElement('input'); concurrency.type = 'number'; concurrency.min = 1; concurrency.dataset.key = 'concurrency'; concurrency.value = cfg.concurrency || 1;
-  const maxResults = document.createElement('input'); maxResults.type = 'number'; maxResults.min = 0; maxResults.dataset.key = 'maxResults'; maxResults.value = (typeof cfg.maxResults === 'number') ? cfg.maxResults : (cfg.maxResults || 0);
-      const timeout = document.createElement('input'); timeout.type = 'number'; timeout.min = 100; timeout.dataset.key = 'timeoutMs'; timeout.value = cfg.timeoutMs || 10000;
+      const enabled = el('input', { type: 'checkbox', checked: !!cfg.enabled });
+      enabled.dataset.key = 'enabled';
+      const sync = () => card.classList.toggle('off', !enabled.checked);
+      enabled.addEventListener('change', () => { sync(); renderPreview(); });
+      sync();
 
+      const kinds = (meta.kinds || []).map((k) => (k === 'book' ? 'books' : 'audiobooks')).join(' and ');
+      card.append(el('div', { className: 'provider-head' }, [
+        el('h3', {}, [meta.label || name, el('small', { textContent: kinds })]),
+        el('span', { className: 'switch', title: 'Enabled' }, [enabled, el('i')]),
+      ]));
+
+      const language = el('select', { title: meta.languageMeaning || '' });
+      language.dataset.key = 'language';
+      const codes = (meta.supportedLanguages || []).slice();
+      if (cfg.language && !codes.includes(cfg.language)) codes.push(cfg.language);
+      for (const code of codes) language.append(el('option', { value: code, textContent: code }));
+      language.value = cfg.language || '';
+
+      const priority = numberInput('priority', typeof cfg.priority === 'number' ? cfg.priority : 0, 0);
+      priority.addEventListener('input', renderPreview);
+
+      card.append(el('div', { className: 'fields' }, [
+        field('Language / store', language),
+        field('Priority', priority),
+        field('Max results (0 = all)', numberInput('maxResults', typeof cfg.maxResults === 'number' ? cfg.maxResults : 0, 0), 'wide'),
+      ]));
+
+      const advanced = el('div', { className: 'fields' }, [
+        field('Detail pages at once', numberInput('concurrency', cfg.concurrency || 1, 1)),
+        field('Request timeout (ms)', numberInput('timeoutMs', cfg.timeoutMs || 10000, 100)),
+      ]);
       // Extras: provider-specific typed inputs when possible
-      let extrasNode = null;
       if (name === 'audioteka') {
-        // audioteka: addLinkToDescription boolean
-        const chk = document.createElement('input'); chk.type = 'checkbox'; chk.dataset.key = 'extra.addLinkToDescription'; chk.checked = !!(cfg.extra && cfg.extra.addLinkToDescription);
-        extrasNode = document.createElement('div'); extrasNode.appendChild(document.createTextNode('Add link to description: ')); extrasNode.appendChild(chk);
+        const chk = el('input', { type: 'checkbox', checked: !!(cfg.extra && cfg.extra.addLinkToDescription) });
+        chk.dataset.key = 'extra.addLinkToDescription';
+        advanced.append(field('Start the description with a link to Audioteka', el('span', { className: 'switch' }, [chk, el('i')]), 'wide inline'));
       } else {
-        const ta = document.createElement('textarea'); ta.rows = 3; ta.cols = 40; ta.dataset.key = 'extra'; ta.value = JSON.stringify(cfg.extra || {}, null, 2);
-        extrasNode = ta;
+        const ta = el('textarea', { rows: 2, value: JSON.stringify(cfg.extra || {}, null, 2) });
+        ta.dataset.key = 'extra';
+        advanced.append(field('Extra (JSON)', ta, 'wide'));
       }
+      card.append(el('details', {}, [el('summary', { textContent: 'Advanced' }), advanced]));
+      return card;
+    }
 
-      const heading = document.createElement('h4'); heading.textContent = name; div.appendChild(heading);
-      const form = document.createElement('div');
-      const row = (labelText, node) => { form.appendChild(document.createTextNode(labelText)); form.appendChild(node); form.appendChild(document.createElement('br')); };
-      row('Enabled: ', enabled);
-      row('Language: ', language);
-      row('Concurrency: ', concurrency);
-  row('Max results (0 = unlimited): ', maxResults);
-      row('TimeoutMs: ', timeout);
-      row('Priority: ', priority);
-      row('Extras: ', extrasNode);
+    function renderGlobal(cfg) {
+      const g = cfg.global || {};
+      $('global_maxProvidersParallel').value = g.maxProvidersParallel || 3;
+      $('global_searchTimeoutMs').value = typeof g.searchTimeoutMs === 'number' ? g.searchTimeoutMs : 9000;
+      $('global_allowBooks').checked = typeof g.allowBooks !== 'undefined' ? !!g.allowBooks : true;
+      $('global_allowAudiobooks').checked = typeof g.allowAudiobooks !== 'undefined' ? !!g.allowAudiobooks : true;
+      $('global_titleWeight').value = typeof g.titleWeight === 'number' ? g.titleWeight : 60;
+      $('global_similarityThreshold').value = typeof g.similarityThreshold === 'number' ? g.similarityThreshold : 30;
+      $('global_mergeBestResults').checked = !!g.mergeBestResults;
 
-      div.appendChild(form);
+      const mergePrefs = g.mergePreferences || {};
+      const providersList = Object.keys(cfg.providers || {});
+      const container = $('mergePrefs');
+      container.replaceChildren();
+      for (const f of PREF_FIELDS) {
+        const sel = el('select');
+        sel.dataset.key = 'mergePref.' + f;
+        sel.append(el('option', { value: '', textContent: 'automatic' }));
+        for (const p of providersList) sel.append(el('option', { value: p, textContent: p }));
+        sel.value = mergePrefs[f] || '';
+        container.append(field(f, sel));
+      }
+      updateLabels();
+    }
 
-      return div;
+    function updateLabels() {
+      const w = parseInt($('global_titleWeight').value, 10) || 0;
+      $('titleWeightLabel').textContent = `title ${w}% · author ${100 - w}%`;
+      $('similarityThresholdLabel').textContent = `at least ${parseInt($('global_similarityThreshold').value, 10) || 0}%`;
+      $('mergePrefs').classList.toggle('disabled', !$('global_mergeBestResults').checked);
+    }
+    for (const id of ['global_titleWeight', 'global_similarityThreshold']) $(id).addEventListener('input', updateLabels);
+    $('global_mergeBestResults').addEventListener('change', updateLabels);
+
+    // Results with the same score: audiobooks first, then the source with the higher priority.
+    function renderPreview() {
+      const cards = Array.from($('providers').children).filter((c) => c.querySelector('[data-key="enabled"]').checked);
+      const rows = cards.map((c) => ({ name: c.dataset.name, priority: parseInt(c.querySelector('[data-key="priority"]').value, 10) || 0 }))
+        .sort((a, b) => b.priority - a.priority);
+      $('previewResult').replaceChildren(...rows.map((r) => el('li', { textContent: `${r.name} (priority ${r.priority})` })));
     }
 
     function renderConfig(cfg, meta = []) {
       currentConfig = cfg;
-      const container = document.getElementById('providers');
-      container.innerHTML = '';
+      const container = $('providers');
+      container.replaceChildren();
       for (const [name, p] of Object.entries(cfg.providers || {})) {
-        const providerMeta = (meta && meta.find && meta.find(m => m.name === name)) || {};
-        const node = renderProvider(name, p, providerMeta.supportedLanguages || []);
-        container.appendChild(node);
+        container.append(renderProvider(name, p, meta.find((m) => m.name === name) || {}));
       }
-      renderGlobal(cfg || {});
+      renderGlobal(cfg);
+      renderPreview();
+    }
+
+    async function fetchMeta() {
+      try {
+        const r = await fetch(withKey('/admin/providers/meta'));
+        return r.ok ? await r.json() : [];
+      } catch (e) {
+        return [];
+      }
     }
 
     async function loadAndRender() {
-      const cfg = await fetchConfig();
-      let meta = [];
-      try {
-        const r = await fetch(withKey('/admin/providers/meta'));
-        if (r.ok) meta = await r.json();
-      } catch (e) {
-        // ignore
-      }
-      if (cfg) renderConfig(cfg, meta);
+      setStatus('Loading…');
+      const res = await fetch(withKey('/admin/config'));
+      if (!res.ok) return setStatus('Failed to load config: ' + (res.status === 401 ? 'API key required (open as /admin?key=…)' : res.statusText), true);
+      renderConfig(await res.json(), await fetchMeta());
+      setStatus('');
     }
 
-    function renderGlobal(cfg) {
-      document.getElementById('global_maxProvidersParallel').value = (cfg.global && cfg.global.maxProvidersParallel) || 3;
-      document.getElementById('global_allowBooks').checked = (cfg.global && typeof cfg.global.allowBooks !== 'undefined') ? !!cfg.global.allowBooks : true;
-      document.getElementById('global_allowAudiobooks').checked = (cfg.global && typeof cfg.global.allowAudiobooks !== 'undefined') ? !!cfg.global.allowAudiobooks : true;
-      document.getElementById('global_titleWeight').value = (cfg.global && typeof cfg.global.titleWeight === 'number') ? cfg.global.titleWeight : 60;
-      document.getElementById('titleWeightLabel').textContent = `Title ${document.getElementById('global_titleWeight').value}% / Author ${100 - document.getElementById('global_titleWeight').value}%`;
-      document.getElementById('global_similarityThreshold').value = (cfg.global && typeof cfg.global.similarityThreshold === 'number') ? cfg.global.similarityThreshold : 30;
-      document.getElementById('similarityThresholdLabel').textContent = `>= ${document.getElementById('global_similarityThreshold').value}%`;
-    document.getElementById('global_mergeBestResults').checked = !!(cfg.global && cfg.global.mergeBestResults);
-      // render merge preferences
-      const mergePrefs = cfg.global && cfg.global.mergePreferences ? cfg.global.mergePreferences : {};
-  const fields = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language','genres','tags'];
-      const providersList = Object.keys(cfg.providers || {});
-      const container = document.getElementById('mergePrefs');
-      container.innerHTML = '';
-      for (const f of fields) {
-        const lbl = document.createElement('div'); lbl.textContent = f + ':';
-        const sel = document.createElement('select'); sel.dataset.key = 'mergePref.' + f;
-        const optAuto = document.createElement('option'); optAuto.value = ''; optAuto.textContent = '<auto>'; sel.appendChild(optAuto);
-        for (const p of providersList) {
-          const o = document.createElement('option'); o.value = p; o.textContent = p; sel.appendChild(o);
-        }
-        sel.value = mergePrefs[f] || '';
-        container.appendChild(lbl); container.appendChild(sel);
-      }
-    }
+    $('reload').addEventListener('click', loadAndRender);
 
-    document.getElementById('reload').addEventListener('click', loadAndRender);
-
-    document.getElementById('save').addEventListener('click', async () => {
+    $('save').addEventListener('click', async () => {
       if (!currentConfig) return setStatus('No config loaded', true);
+      const int = (node, fallback) => { const v = parseInt(node.value, 10); return Number.isNaN(v) ? fallback : v; };
       // Start from the loaded global section: it has settings this form does not show.
       const newCfg = { providers: {}, global: { ...(currentConfig.global || {}) } };
-      const container = document.getElementById('providers');
-      for (const child of container.children) {
-        const name = child.dataset.name;
-        const enabled = !!child.querySelector('[data-key="enabled"]').checked;
-        const language = child.querySelector('[data-key="language"]').value.trim();
-        const concurrency = parseInt(child.querySelector('[data-key="concurrency"]').value, 10) || 1;
-        const timeoutMs = parseInt(child.querySelector('[data-key="timeoutMs"]').value, 10) || 10000;
-        const priority = parseInt(child.querySelector('[data-key="priority"]').value, 10) || 0;
-
-        // Build extras based on inputs
+      for (const card of $('providers').children) {
+        const name = card.dataset.name;
+        const q = (key) => card.querySelector(`[data-key="${key}"]`);
         let extra = {};
         if (name === 'audioteka') {
-          const v = !!child.querySelector('[data-key="extra.addLinkToDescription"]').checked;
-          extra.addLinkToDescription = v;
+          extra.addLinkToDescription = q('extra.addLinkToDescription').checked;
         } else {
-          const ta = child.querySelector('[data-key="extra"]').value || '{}';
-          try { extra = JSON.parse(ta); } catch (e) { setStatus('Invalid JSON in extras for ' + name, true); return; }
+          try { extra = JSON.parse(q('extra').value || '{}'); } catch (e) { return setStatus('Invalid JSON in extra for ' + name, true); }
         }
-
-        const maxResultsVal = parseInt(child.querySelector('[data-key="maxResults"]').value, 10) || 0;
-        newCfg.providers[name] = { enabled, priority, language, concurrency, timeoutMs, maxResults: maxResultsVal, extra };
+        newCfg.providers[name] = {
+          enabled: q('enabled').checked,
+          priority: int(q('priority'), 0),
+          language: q('language').value.trim(),
+          concurrency: int(q('concurrency'), 1) || 1,
+          timeoutMs: int(q('timeoutMs'), 10000) || 10000,
+          maxResults: int(q('maxResults'), 0),
+          extra,
+        };
       }
-  newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
-  newCfg.global.allowBooks = !!document.getElementById('global_allowBooks').checked;
-  newCfg.global.allowAudiobooks = !!document.getElementById('global_allowAudiobooks').checked;
-  // 0 is a valid value for both sliders.
-  const sliderValue = (id, fallback) => { const v = parseInt(document.getElementById(id).value, 10); return Number.isNaN(v) ? fallback : v; };
-  newCfg.global.titleWeight = sliderValue('global_titleWeight', 60);
-  newCfg.global.similarityThreshold = sliderValue('global_similarityThreshold', 30);
-  newCfg.global.mergeBestResults = !!document.getElementById('global_mergeBestResults').checked;
-  // read merge preferences
-  const prefFields = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language','genres','tags'];
-  newCfg.global.mergePreferences = {};
-  for (const f of prefFields) {
-    const sel = document.querySelector('[data-key="mergePref.' + f + '"]');
-    if (sel) newCfg.global.mergePreferences[f] = sel.value || null;
-  }
+      newCfg.global.maxProvidersParallel = int($('global_maxProvidersParallel'), 3) || 3;
+      newCfg.global.searchTimeoutMs = int($('global_searchTimeoutMs'), 9000);
+      newCfg.global.allowBooks = $('global_allowBooks').checked;
+      newCfg.global.allowAudiobooks = $('global_allowAudiobooks').checked;
+      // 0 is a valid value for both sliders.
+      newCfg.global.titleWeight = int($('global_titleWeight'), 60);
+      newCfg.global.similarityThreshold = int($('global_similarityThreshold'), 30);
+      newCfg.global.mergeBestResults = $('global_mergeBestResults').checked;
+      newCfg.global.mergePreferences = {};
+      for (const f of PREF_FIELDS) {
+        const sel = document.querySelector('[data-key="mergePref.' + f + '"]');
+        if (sel) newCfg.global.mergePreferences[f] = sel.value || null;
+      }
 
-        const headers = { 'Content-Type': 'application/json' };
-      const res = await fetch(withKey('/admin/config'), { method: 'PUT', headers, body: JSON.stringify(newCfg) });
+      setStatus('Saving…');
+      const res = await fetch(withKey('/admin/config'), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newCfg) });
       if (!res.ok) {
         let err = null;
-        try { err = await res.json(); } catch(e) { /* ignore */ }
-        setStatus('Save failed: ' + (err && (err.error || JSON.stringify(err)) || res.statusText), true);
-        return;
+        try { err = await res.json(); } catch (e) { /* ignore */ }
+        return setStatus('Save failed: ' + ((err && err.error) || res.statusText), true);
       }
       const body = await res.json();
-      setStatus('Saved');
-      // reload config from server response if provided
-      if (body && body.config) {
-        currentConfig = body.config;
-        // fetch provider metadata and re-render so language selects stay provider-specific
-          try {
-          const rmeta = await fetch(withKey('/admin/providers/meta'));
-          let meta = [];
-          if (rmeta.ok) meta = await rmeta.json();
-          renderConfig(currentConfig, meta);
-        } catch (e) {
-          renderConfig(currentConfig);
-        }
-      } else {
-        // fallback: re-fetch
-        await loadAndRender();
-      }
+      renderConfig(body.config || newCfg, await fetchMeta());
+      setStatus('Saved ✓');
     });
 
-    // Preview sorting panel
-    const previewPanel = document.createElement('div');
-    previewPanel.id = 'previewPanel';
-    previewPanel.style.marginTop = '1rem';
-    previewPanel.innerHTML = '<h3>Provider priority preview</h3>' +
-      '<button id="previewBtn">Preview sorting with sample data</button>' +
-      '<div id="previewResult" style="margin-top:0.5rem"></div>';
-    document.querySelector('.controls').appendChild(previewPanel);
-
-    document.getElementById('previewBtn').addEventListener('click', () => {
-      // sample dataset: same similarity audiobooks from different providers
-      const samples = [
-        { title: 'Sample A', type: 'audiobook', _provider: 'audioteka', similarity: 0.95 },
-        { title: 'Sample B', type: 'audiobook', _provider: 'lubimyczytac', similarity: 0.95 },
-        { title: 'Sample C', type: 'audiobook', _provider: 'storytel', similarity: 0.95 },
-        { title: 'Sample D', type: 'book', _provider: 'audioteka', similarity: 0.95 }
-      ];
-
-      // read priorities from UI
-      const priorities = {};
-      for (const child of document.getElementById('providers').children) {
-        const name = child.dataset.name;
-        priorities[name] = parseInt(child.querySelector('[data-key="priority"]').value, 10) || 0;
-      }
-
-      const sorted = samples.slice().sort((a, b) => {
-        if (b.similarity !== a.similarity) return b.similarity - a.similarity;
-        const aIsAudio = (a.type === 'audiobook') ? 1 : 0;
-        const bIsAudio = (b.type === 'audiobook') ? 1 : 0;
-        if (bIsAudio !== aIsAudio) return bIsAudio - aIsAudio;
-        const aP = priorities[a._provider] || 0;
-        const bP = priorities[b._provider] || 0;
-        return bP - aP;
-      });
-
-      const out = document.getElementById('previewResult');
-      const list = document.createElement('ol');
-      for (const s of sorted) {
-        const li = document.createElement('li');
-        li.textContent = `${s.title} — ${s.type} — provider: ${s._provider} — priority: ${priorities[s._provider]||0}`;
-        list.appendChild(li);
-      }
-      out.replaceChildren(list);
-    });
-
-    // initial load
     loadAndRender();
-    // live update for titleWeight slider
-    const titleSlider = document.getElementById('global_titleWeight');
-    if (titleSlider) {
-      titleSlider.addEventListener('input', (e) => {
-        const v = parseInt(e.target.value, 10) || 0;
-        const lbl = document.getElementById('titleWeightLabel');
-        if (lbl) lbl.textContent = `Title ${v}% / Author ${100 - v}%`;
-      });
-    }
-    const simSlider = document.getElementById('global_similarityThreshold');
-    if (simSlider) {
-      simSlider.addEventListener('input', (e) => {
-        const v = parseInt(e.target.value, 10) || 0;
-        const lbl = document.getElementById('similarityThresholdLabel');
-        if (lbl) lbl.textContent = `>= ${v}%`;
-      });
-    }
   </script>
 </body>
 </html>
