@@ -172,7 +172,7 @@ class StorytelProvider {
             /^.*?,\s*Folge\s*\d+:\s*/i,           // "Folge" (Episode)
             /^.*?,\s*Band\s*\d+:\s*/i,            // "Band" (Volume)
             /^.*?\s+-\s+\d+:\s*/i,                // Title - 1: format
-            /^.*?\s+\d+:\s*/i,                    // Title 1: format
+            /^.*?\s+\d{1,2}:\s*/i,                // Title 1: format (not "Fahrenheit 451: A Novel")
             /^.*?,\s*Teil\s*\d+:\s*/i,            // "Teil" (Part)
             /^.*?,\s*Volume\s*\d+:\s*/i,          // "Volume"
             /\s*\((Ungekürzt|Gekürzt)\)\s*$/i,    // (Unabridged/Abridged)
@@ -200,7 +200,11 @@ class StorytelProvider {
                     title = beforeSeriesMatch[1].trim();
                 }
 
-                title = title.replace(seriesName, '');
+                // The series name goes when it stands apart ("Wiedźmin: Krew elfów"), not when the title
+                // merely starts with it ("Harry Potter i Kamień Filozoficzny").
+                const apart = new RegExp(`(^|[\\s,:–-]+)${safeSeriesName}(\\s*\\d+)?\\s*(?:[,:–-]+\\s*|$)`, 'i');
+                const without = title.replace(apart, ' ').trim();
+                if (without) title = without;
             }
         }
 

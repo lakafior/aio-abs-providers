@@ -42,7 +42,7 @@ class AudibleProvider {
     const params = {
       num_results: String(this.maxResults),
       products_sort_by: 'Relevance',
-      response_groups: 'contributors,media,product_desc,product_attrs,series',
+      response_groups: 'contributors,media,product_desc,product_attrs,series,category_ladders',
     };
     // Title and author apart when the caller gives the author, else free keywords.
     if (author) {
@@ -64,13 +64,17 @@ class AudibleProvider {
     // Translators are listed as authors ("Name - translator").
     const authors = (product.authors || [])
       .map(a => a && a.name)
-      .filter(name => name && !/\s-\stranslator$/i.test(name));
+      .filter(name => name && !/\s[-–—]\s*translator$/i.test(name));
     const narrators = (product.narrators || []).map(n => n && n.name).filter(Boolean);
     const images = product.product_images || {};
     const coverKey = Object.keys(images).sort((a, b) => Number(b) - Number(a))[0];
     const series = (product.series || [])
       .filter(s => s && s.title)
       .map(s => ({ series: s.title, sequence: s.sequence ? String(s.sequence) : undefined }));
+    // Category paths ("Science Fiction & Fantasy > Fantasy > Epic"): the top level is the genre, the rest tags.
+    const ladders = (product.category_ladders || []).map(l => (l.ladder || []).map(c => c && c.name).filter(Boolean));
+    const genres = [...new Set(ladders.map(l => l[0]).filter(Boolean))];
+    const tags = [...new Set(ladders.flatMap(l => l.slice(1)))];
     const description = (product.merchandising_summary || product.publisher_summary || '')
       .replace(/<[^>]+>/g, '')
       .trim();
@@ -87,6 +91,8 @@ class AudibleProvider {
       cover: coverKey ? images[coverKey] : undefined,
       asin: product.asin,
       series: series.length ? series : undefined,
+      genres: genres.length ? genres : undefined,
+      tags: tags.length ? tags : undefined,
       language: product.language || undefined,
       duration: product.runtime_length_min || undefined,
       url: `https://www.audible.${this.domain}/pd/${product.asin}`,

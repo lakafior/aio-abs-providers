@@ -131,8 +131,8 @@ test('audioteka: detail page', async () => {
   assert.equal(full.duration, 388);
   assert.equal(full.publisher, 'SuperNOWA');
   assert.deepEqual(full.genres, ['Fantasy', 'Fantastyka']);
-  assert.deepEqual(full.series, ['Wiedźmin']);
-  assert.deepEqual(full.tags, []);
+  assert.deepEqual(full.series, []); // collections are not reliably series
+  assert.deepEqual(full.tags, ['Wiedźmin']);
   assert.equal(full.productType, 'Słuchowisko');
   assert.equal(full.rating, 4.9);
   assert.equal(full.cover, 'https://atkcdn.audioteka.com/cc/c8/krew-elfow-tom-1/947.jpg');
@@ -192,6 +192,18 @@ test('storytel: a hyphen inside a word stays in the title', () => {
   assert.equal(provider.formatBookMetadata(item('Spider-Man'), 'audiobook').title, 'Spider-Man');
   const split = provider.formatBookMetadata(item('Diuna: Mesjasz Diuny'), 'audiobook');
   assert.deepEqual([split.title, split.subtitle], ['Diuna', 'Mesjasz Diuny']);
+  assert.equal(provider.formatBookMetadata(item('Fahrenheit 451: A Novel'), 'audiobook').title, 'Fahrenheit 451');
+});
+
+test('storytel: the series name is cut from the title only when it stands apart', () => {
+  const provider = new Storytel({ http: fakeHttp([]) });
+  const item = (name, series, order) => ({ book: { name, authorsAsString: 'A', series: [{ name: series }], seriesOrder: order }, abook: { length: 60000 } });
+  const hp = provider.formatBookMetadata(item('Harry Potter i Kamień Filozoficzny', 'Harry Potter', 1), 'audiobook');
+  assert.equal(hp.title, 'Harry Potter i Kamień Filozoficzny');
+  assert.deepEqual(hp.series, [{ series: 'Harry Potter', sequence: '1' }]);
+  assert.equal(provider.formatBookMetadata(item('Wiedźmin: Krew elfów', 'Wiedźmin', 3), 'audiobook').title, 'Krew elfów');
+  assert.equal(provider.formatBookMetadata(item('Krew elfów - Wiedźmin', 'Wiedźmin', 3), 'audiobook').title, 'Krew elfów');
+  assert.equal(provider.formatBookMetadata(item('Wiedźmin', 'Wiedźmin', 1), 'audiobook').title, 'Wiedźmin');
 });
 
 test('storytel: a block page is an error', async () => {
@@ -225,9 +237,15 @@ test('audible: series, translators and the unknown region', () => {
   assert.equal(provider.region, 'us');
   const formatted = provider.format({
     asin: 'B000', title: 'The Last Wish (Unabridged)',
-    authors: [{ name: 'Andrzej Sapkowski' }, { name: 'Danusia Stok - translator' }],
+    authors: [{ name: 'Andrzej Sapkowski' }, { name: 'Danusia Stok - translator' }, { name: 'David French — Translator' }],
     series: [{ title: 'The Witcher', sequence: '0.5' }],
+    category_ladders: [
+      { ladder: [{ name: 'Science Fiction & Fantasy' }, { name: 'Fantasy' }, { name: 'Epic' }] },
+      { ladder: [{ name: 'Science Fiction & Fantasy' }, { name: 'Fantasy' }, { name: 'Action & Adventure' }] },
+    ],
   });
+  assert.deepEqual(formatted.genres, ['Science Fiction & Fantasy']);
+  assert.deepEqual(formatted.tags, ['Fantasy', 'Epic', 'Action & Adventure']);
   assert.equal(formatted.title, 'The Last Wish');
   assert.deepEqual(formatted.authors, ['Andrzej Sapkowski']);
   assert.deepEqual(formatted.series, [{ series: 'The Witcher', sequence: '0.5' }]);

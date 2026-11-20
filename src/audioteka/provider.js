@@ -79,7 +79,8 @@ class AudiotekaProvider {
 
       const title = text($book.find('[class*="teaser_title__"]').first().text());
       const href = $book.find('[class*="teaser_link__"]').first().attr('href') || $book.find('a[href*="/audiobook/"]').first().attr('href');
-      if (!title || !href) return;
+      // Products only: the results also list cycles (/pl/cykl/, /cz/serie/), which have no detail page to read.
+      if (!title || !href || !/\/(audiobook|audiokniha)\//.test(href)) return;
       const bookUrl = href.startsWith('http') ? href : this.baseUrl + href;
       if (seen.has(bookUrl)) return;
       seen.add(bookUrl);
@@ -168,11 +169,9 @@ class AudiotekaProvider {
     const duration = parseDuration(dd(labels.duration).text()) || parseIsoDuration(product.duration);
     const productType = text(dd(labels.type).text());
 
-    // "Collections": a link to /cykl/ (/cyklus/) is the series the book belongs to, the others are tags.
-    // Audioteka does not number the volumes.
-    const collections = $('[class*="collections_list__"] a').map((i, el) => ({ href: $(el).attr('href') || '', name: text($(el).text()) })).get();
-    const series = unique(collections.filter((c) => /\/(cykl|cyklus)\//.test(c.href)).map((c) => c.name));
-    const tags = unique(collections.filter((c) => !/\/(cykl|cyklus)\//.test(c.href)).map((c) => c.name));
+    // "Collections this product is in": real cycles ("Wiedźmin") and shop shelves ("Bestsellery", "Lektury
+    // szkoła średnia") look the same on the page, so they are tags, not a series.
+    const tags = unique($('[class*="collections_list__"] a').map((i, el) => text($(el).text())).get());
 
     const ratingValue = Number(product.aggregateRating && product.aggregateRating.ratingValue);
     const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? ratingValue : (match.rating || null);
@@ -202,7 +201,7 @@ class AudiotekaProvider {
       // The page's "Typ" (e.g. "Audiobook", "Słuchowisko"); `type` stays "audiobook" for filtering.
       productType: productType || undefined,
       genres,
-      series,
+      series: [],
       tags,
       rating,
       languages: this.language === 'cz' ? ['czech'] : ['polish'],
