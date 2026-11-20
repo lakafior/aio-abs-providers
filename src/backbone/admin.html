@@ -15,7 +15,7 @@
 </head>
 <body>
   <h1>Backbone Config Editor</h1>
-  <p>LAN UI — admin endpoints are accessible on the local network.</p>
+  <p>Anyone who can reach this page can change the config: set <code>API_KEY</code> when the port is reachable by others.</p>
 
   <div id="providers"></div>
 
@@ -127,16 +127,12 @@
         // audioteka: addLinkToDescription boolean
         const chk = document.createElement('input'); chk.type = 'checkbox'; chk.dataset.key = 'extra.addLinkToDescription'; chk.checked = !!(cfg.extra && cfg.extra.addLinkToDescription);
         extrasNode = document.createElement('div'); extrasNode.appendChild(document.createTextNode('Add link to description: ')); extrasNode.appendChild(chk);
-      } else if (name === 'storytel') {
-        // storytel: preferredRegions as comma-separated
-        const regions = document.createElement('input'); regions.type = 'text'; regions.dataset.key = 'extra.preferredRegions'; regions.value = (cfg.extra && cfg.extra.preferredRegions) ? (cfg.extra.preferredRegions.join(',') ) : '';
-        extrasNode = document.createElement('div'); extrasNode.appendChild(document.createTextNode('Preferred regions (csv): ')); extrasNode.appendChild(regions);
       } else {
         const ta = document.createElement('textarea'); ta.rows = 3; ta.cols = 40; ta.dataset.key = 'extra'; ta.value = JSON.stringify(cfg.extra || {}, null, 2);
         extrasNode = ta;
       }
 
-      div.innerHTML = `<h4>${name}</h4>`;
+      const heading = document.createElement('h4'); heading.textContent = name; div.appendChild(heading);
       const form = document.createElement('div');
       const row = (labelText, node) => { form.appendChild(document.createTextNode(labelText)); form.appendChild(node); form.appendChild(document.createElement('br')); };
       row('Enabled: ', enabled);
@@ -207,7 +203,8 @@
 
     document.getElementById('save').addEventListener('click', async () => {
       if (!currentConfig) return setStatus('No config loaded', true);
-      const newCfg = { providers: {}, global: {} };
+      // Start from the loaded global section: it has settings this form does not show.
+      const newCfg = { providers: {}, global: { ...(currentConfig.global || {}) } };
       const container = document.getElementById('providers');
       for (const child of container.children) {
         const name = child.dataset.name;
@@ -222,9 +219,6 @@
         if (name === 'audioteka') {
           const v = !!child.querySelector('[data-key="extra.addLinkToDescription"]').checked;
           extra.addLinkToDescription = v;
-        } else if (name === 'storytel') {
-          const v = child.querySelector('[data-key="extra.preferredRegions"]').value.trim();
-          extra.preferredRegions = v ? v.split(',').map(s => s.trim()).filter(Boolean) : [];
         } else {
           const ta = child.querySelector('[data-key="extra"]').value || '{}';
           try { extra = JSON.parse(ta); } catch (e) { setStatus('Invalid JSON in extras for ' + name, true); return; }
@@ -236,8 +230,10 @@
   newCfg.global.maxProvidersParallel = parseInt(document.getElementById('global_maxProvidersParallel').value, 10) || 3;
   newCfg.global.allowBooks = !!document.getElementById('global_allowBooks').checked;
   newCfg.global.allowAudiobooks = !!document.getElementById('global_allowAudiobooks').checked;
-  newCfg.global.titleWeight = parseInt(document.getElementById('global_titleWeight').value, 10) || 60;
-  newCfg.global.similarityThreshold = parseInt(document.getElementById('global_similarityThreshold').value, 10) || 30;
+  // 0 is a valid value for both sliders.
+  const sliderValue = (id, fallback) => { const v = parseInt(document.getElementById(id).value, 10); return Number.isNaN(v) ? fallback : v; };
+  newCfg.global.titleWeight = sliderValue('global_titleWeight', 60);
+  newCfg.global.similarityThreshold = sliderValue('global_similarityThreshold', 30);
   newCfg.global.mergeBestResults = !!document.getElementById('global_mergeBestResults').checked;
   // read merge preferences
   const prefFields = ['title','subtitle','authors','narrator','description','cover','isbn','asin','duration','publishedYear','rating','url','source','identifiers','publisher','series','seriesIndex','language','genres','tags'];
@@ -311,7 +307,13 @@
       });
 
       const out = document.getElementById('previewResult');
-      out.innerHTML = '<ol>' + sorted.map(s => `<li>${s.title} — ${s.type} — provider: ${s._provider} — priority: ${priorities[s._provider]||0}</li>`).join('') + '</ol>';
+      const list = document.createElement('ol');
+      for (const s of sorted) {
+        const li = document.createElement('li');
+        li.textContent = `${s.title} — ${s.type} — provider: ${s._provider} — priority: ${priorities[s._provider]||0}`;
+        list.appendChild(li);
+      }
+      out.replaceChildren(list);
     });
 
     // initial load

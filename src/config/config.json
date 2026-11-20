@@ -27,11 +27,7 @@
       "concurrency": 2,
       "timeoutMs": 12000,
       "maxResults": 2,
-      "extra": {
-        "preferredRegions": [
-          "pl"
-        ]
-      }
+      "extra": {}
     },
     "audible": {
       "enabled": true,
@@ -71,6 +67,7 @@
       "language": "lubimyczytac",
       "genres": "lubimyczytac",
       "tags": null
-    }
+    },
+    "searchTimeoutMs": 9000
   }
 }

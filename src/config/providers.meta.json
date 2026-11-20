@@ -1,0 +1,34 @@
+{
+  "providers": {
+    "lubimyczytac": {
+      "label": "Lubimy Czytać",
+      "kinds": ["book", "audiobook"],
+      "supportedLanguages": ["pl"],
+      "languageMeaning": "Site language; only Polish exists.",
+      "extra": {}
+    },
+    "audioteka": {
+      "label": "Audioteka",
+      "kinds": ["audiobook"],
+      "supportedLanguages": ["pl", "cz"],
+      "languageMeaning": "Audioteka store: pl (audioteka.com/pl) or cz (audioteka.com/cz).",
+      "extra": {
+        "addLinkToDescription": { "type": "boolean", "default": true, "description": "Put a link to the Audioteka page at the top of the description." }
+      }
+    },
+    "storytel": {
+      "label": "Storytel",
+      "kinds": ["book", "audiobook"],
+      "supportedLanguages": ["en", "pl", "de", "sv", "da", "fi", "fr", "nl", "es", "pt", "it", "is", "bg", "ar", "he", "hi"],
+      "languageMeaning": "Storytel market (request_locale).",
+      "extra": {}
+    },
+    "audible": {
+      "label": "Audible",
+      "kinds": ["audiobook"],
+      "supportedLanguages": ["us", "uk", "de", "fr", "it", "es", "ca", "au", "in", "jp"],
+      "languageMeaning": "Audible store (region), not a language. There is no Polish store.",
+      "extra": {}
+    }
+  }
+}

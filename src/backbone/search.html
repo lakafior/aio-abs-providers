@@ -58,6 +58,17 @@
       try { return new Date(d).toLocaleDateString(); } catch(e) { return String(d); }
     }
 
+    // Descriptions come from other sites as HTML: show their text only, never run their markup.
+    function plainText(html) {
+      const doc = new DOMParser().parseFromString(String(html || '').replace(/<br\s*\/?>|<\/p>/gi, '\n'), 'text/html');
+      return doc.body.textContent || '';
+    }
+
+    function labelled(parent, label, value) {
+      const b = document.createElement('strong'); b.textContent = label + ': ';
+      parent.appendChild(b); parent.appendChild(document.createTextNode((value || '') + '  '));
+    }
+
     function renderMatch(m) {
       const div = document.createElement('div');
       div.className = 'result';
@@ -65,7 +76,8 @@
   const coverWrap = document.createElement('div'); coverWrap.className = 'cover-container';
   const img = document.createElement('img');
   img.className = 'cover';
-  img.src = m.cover || (m.source && m.source.link) || '';
+  if (/^https?:\/\//i.test(m.cover || '')) img.src = m.cover; else img.style.visibility = 'hidden';
+  img.referrerPolicy = 'no-referrer';
   img.alt = m.title || '';
   img.onerror = function() { this.style.visibility = 'hidden'; };
   // Decide audiobook vs book: explicit type or provider-specific fallback (Audioteka is audiobooks)
@@ -99,28 +111,32 @@
 
       if (m.description) {
         const desc = document.createElement('p');
-        desc.innerHTML = m.description.length > 1000 ? (m.description.slice(0,1000) + '...') : m.description;
+        const descText = plainText(m.description);
+        desc.style.whiteSpace = 'pre-line';
+        desc.textContent = descText.length > 1000 ? (descText.slice(0,1000) + '...') : descText;
         meta.appendChild(desc);
       }
 
       const details = document.createElement('div');
-      details.innerHTML = `
-        <strong>Publisher:</strong> ${m.publisher || ''} &nbsp; <strong>Published:</strong> ${formatDate(m.publishedDate)}<br/>
-        <strong>Genres:</strong> ${(m.genres||[]).join(', ')} &nbsp; <strong>Tags:</strong> ${(m.tags||[]).join(', ')}
-      `;
+      labelled(details, 'Publisher', m.publisher);
+      labelled(details, 'Published', m.publishedDate ? formatDate(m.publishedDate) : m.publishedYear);
+      labelled(details, 'Series', (m.series||[]).map(s => s.series + (s.sequence ? ' #' + s.sequence : '')).join(', '));
+      details.appendChild(document.createElement('br'));
+      labelled(details, 'Genres', (m.genres||[]).join(', '));
+      labelled(details, 'Tags', (m.tags||[]).join(', '));
       meta.appendChild(details);
 
       // identifiers
       if (m.identifiers) {
         const ids = document.createElement('div');
-        ids.innerHTML = '<strong>Identifiers:</strong> ' + Object.entries(m.identifiers).map(([k,v])=>`${k}: ${v}`).join(' | ');
+        labelled(ids, 'Identifiers', Object.entries(m.identifiers).map(([k,v])=>`${k}: ${v}`).join(' | '));
         meta.appendChild(ids);
       }
 
       // link
       if (m.url) {
         const a = document.createElement('a');
-        a.href = m.url;
+        if (/^https?:\/\//i.test(m.url)) a.href = m.url;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
         a.textContent = 'Open source page';
