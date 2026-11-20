@@ -88,7 +88,7 @@ Provider names are fixed: `lubimyczytac`, `audioteka`, `storytel`, `audible`. A 
 | Name | Label | Returns | `language` values | What `language` means | `extra` |
 |---|---|---|---|---|---|
 | `lubimyczytac` | Lubimy Czytać | books, audiobooks | `pl` | only Polish exists | – |
-| `audioteka` | Audioteka | audiobooks | `pl`, `cz` | the Audioteka store | `addLinkToDescription` (boolean, default `true`; the shipped config sets `false`): start the description with a link to the Audioteka page |
+| `audioteka` | Audioteka | audiobooks | `pl`, `cz`, `de` | the Audioteka store | `addLinkToDescription` (boolean, default `true`; the shipped config sets `false`): start the description with a link to the Audioteka page |
 | `storytel` | Storytel | books, audiobooks | `en`, `pl`, `de`, `sv`, `da`, `fi`, `fr`, `nl`, `es`, `pt`, `it`, `is`, `bg`, `ar`, `he`, `hi` | the Storytel market | – |
 | `audible` | Audible | audiobooks | `us`, `uk`, `de`, `fr`, `it`, `es`, `ca`, `au`, `in`, `jp` | the Audible store (a region, not a language; there is no Polish store) | – |
 
@@ -103,8 +103,9 @@ What each source can supply:
 | tags | yes | collections | no | sub-genres |
 | publisher | yes | yes | yes | yes |
 | year | first Polish edition | no | this edition | this edition |
-| language | `pol`, `eng` | `polish`, `czech` | `pl`, `en`, … | `english`, … |
-| ISBN | yes | no | yes | no |
+| language | `pol`, `eng` | `polish`, `czech`, `german` | `pl`, `en`, … | `english`, … |
+| ISBN | yes | German store | yes (real ISBNs only) | no |
+| original title (`originalTitle`) | yes | no | no | no |
 | ASIN | no | no | no | yes |
 
 ## A form that covers it

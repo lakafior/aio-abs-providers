@@ -69,7 +69,7 @@ Searches multiple providers (lubimyczytac, audioteka, storytel, ...) and returns
 | Provider | Kind | Notes |
 |---|---|---|
 | `lubimyczytac` | books and audiobooks | detail pages fetched only for candidates above the similarity threshold |
-| `audioteka` | audiobooks | `pl` or `cz` |
+| `audioteka` | audiobooks | `pl`, `cz` or `de` |
 | `storytel` | books and audiobooks (one result per edition) | `language` = Storytel market (`pl`, `sv`, …) |
 | `audible` | audiobooks | Audible's catalog API, no key; `language` = store (`us`, `uk`, `de`, `fr`, `it`, `es`, `ca`, `au`, `in`, `jp`) |
 

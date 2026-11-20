@@ -127,6 +127,7 @@ function toAbsMatch(m) {
   const out = {
     title: has(m.title) ? String(m.title).trim() : undefined,
     subtitle: has(m.subtitle) ? String(m.subtitle).trim() : undefined,
+    originalTitle: has(m.originalTitle) ? String(m.originalTitle).trim() : undefined,
     author: authors.length ? authors.join(', ') : undefined,
     authors,
     narrator: stringList(narrator).join(', ') || undefined,
@@ -173,7 +174,7 @@ function sortResults(results) {
   });
 }
 
-const MERGE_SINGLE_FIELDS = ['title', 'subtitle', 'authors', 'narrator', 'description', 'cover', 'type', 'publisher',
+const MERGE_SINGLE_FIELDS = ['title', 'subtitle', 'originalTitle', 'authors', 'narrator', 'description', 'cover', 'type', 'publisher',
   'rating', 'duration', 'url', 'id', 'source', 'publishedDate', 'publishedYear', 'language'];
 const COUNTED_FIELDS = ['title', 'authors', 'narrator', 'description', 'cover', 'type', 'url', 'id', 'languages',
   'publisher', 'publishedDate', 'series', 'genres', 'tags', 'identifiers'];

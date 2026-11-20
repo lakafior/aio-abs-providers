@@ -7,6 +7,8 @@ const Audioteka = require('../../src/audioteka/provider');
 const Storytel = require('../../src/storytel/provider');
 const Audible = require('../../src/audible/provider');
 const meta = require('../../src/contract/providers.meta.json');
+const { validIsbn } = require('../../src/lib/isbn');
+const { toAbsMatch } = require('../../src/backbone/pipeline');
 
 test('lubimyczytac: a plain title is searched as it is', () => {
   const clean = LubimyCzytac.cleanTitle;
@@ -249,6 +251,89 @@ test('audible: series, translators and the unknown region', () => {
   assert.equal(formatted.title, 'The Last Wish');
   assert.deepEqual(formatted.authors, ['Andrzej Sapkowski']);
   assert.deepEqual(formatted.series, [{ series: 'The Witcher', sequence: '0.5' }]);
+});
+
+test('lubimyczytac: cycle from the page record, original title, missing cover', () => {
+  const provider = new LubimyCzytac({ http: fakeHttp([]) });
+  const page = (ld, body = '') => `<html><head><meta property="og:image" content="http://s.lubimyczytac.pl/upload/books/1/1-352x500.jpg">
+    <script type="application/ld+json">${JSON.stringify({ '@type': 'Book', name: 'Szklana góra', ...ld })}</script></head><body>${body}</body></html>`;
+  const snippet = { id: '1', title: 'Szklana góra', authors: ['Anna Testowa'], url: 'https://lubimyczytac.pl/ksiazka/1/szklana-gora', type: 'book' };
+
+  const cycle = provider.parseDetail(page(
+    { datePublished: '2014-09-25', isPartOfSeries: { name: 'Cykl Górski', position: '2', url: 'https://lubimyczytac.pl/cykl/5/cykl-gorski' } },
+    '<dl><dt> Tytuł oryginału:</dt><dd> Glass Mountain </dd></dl>',
+  ), snippet);
+  assert.equal(cycle.series, 'Cykl Górski');
+  assert.equal(cycle.seriesIndex, 2);
+  assert.equal(cycle.originalTitle, 'Glass Mountain');
+  assert.equal(cycle.publishedDate, '2014-09-25'); // no edition rows: the record's date
+  assert.equal(cycle.cover, 'https://s.lubimyczytac.pl/upload/books/1/1-352x500.jpg'); // the preview picture, over https
+
+  // A publisher's imprint is not a series; the same title is not an original title.
+  const imprint = provider.parseDetail(page(
+    { image: 'https://s.lubimyczytac.pl/upload/default-book-352x500.jpg', isPartOfSeries: { name: 'Seria z Kotem', url: 'https://lubimyczytac.pl/seria/9/seria-z-kotem' } },
+    '<dl><dt> Tytuł oryginału:</dt><dd> Szklana góra </dd><dt title="Data pierwszego wydania"> Data 1. wydania:</dt><dd> 1986-01-01 </dd><dt title="Data pierwszego wydania polskiego"> Data 1. wyd. pol.:</dt><dd> 1993-01-01 </dd></dl>',
+  ), snippet);
+  assert.equal(imprint.series, null);
+  assert.equal(imprint.originalTitle, undefined);
+  assert.equal(imprint.cover, '');
+  assert.equal(imprint.publishedDate, '1993-01-01'); // the first Polish edition leads
+  assert.equal(toAbsMatch({ ...cycle, _provider: 'lubimyczytac' }).originalTitle, 'Glass Mountain');
+});
+
+test('audioteka: the German store', async () => {
+  const detail = `<html><head><script type="application/ld+json">${JSON.stringify({ '@type': ['Product', 'Audiobook'], name: 'Glasberg', image: 'https://atkcdn.audioteka.com/cc/aa/glasberg/1.jpg?w=300', duration: 'PT8H42M', readBy: [{ name: 'Hans Probe' }] })}</script></head><body>
+    <dl><dt>Sprecher</dt><dd><a>Hans Probe</a></dd><dt>Dauer</dt><dd>8 Stunden 42 Minuten</dd><dt>Verlag</dt><dd><a>Probeverlag</a></dd><dt>Typ</dt><dd>Hörbuch</dd>
+    <dt>Sprache</dt><dd>Deutsch</dd><dt>Kategorie</dt><dd><a>Science-Fiction</a></dd><dt>ISBN</dt><dd>9783161484100</dd></dl>
+    <div id="audiobook-description"><p>Ein Probetext.</p></div></body></html>`;
+  const http = fakeHttp([['/de/search/', '<div class="teaser_teaser__x"><a class="teaser_link__x" href="/de/audiobook/glasberg/"><p class="teaser_title__x">Glasberg</p></a><p class="teaser_author__x">Anna Probe</p></div>'], ['/de/audiobook/glasberg/', detail]]);
+  const provider = new Audioteka({ http, language: 'de', extra: { addLinkToDescription: false } });
+  const { matches } = await provider.searchBooks('Glasberg');
+  assert.match(http.calls[0].url, /^https:\/\/audioteka\.com\/de\/search\/\?phrase=Glasberg/);
+  assert.equal(matches[0].url, 'https://audioteka.com/de/audiobook/glasberg/');
+
+  const full = await provider.getFullMetadata(matches[0]);
+  assert.equal(full.narrator, 'Hans Probe');
+  assert.equal(full.duration, 522);
+  assert.equal(full.publisher, 'Probeverlag');
+  assert.deepEqual(full.genres, ['Science-Fiction']);
+  assert.deepEqual(full.languages, ['german']);
+  assert.equal(full.identifiers.isbn, '9783161484100');
+  assert.equal(full.description, '<p>Ein Probetext.</p>'); // found by its id when the class is gone
+  assert.equal(Audioteka.parseDuration('8 Stunden'), 480);
+});
+
+test('audioteka: reading lists are not genres; an unknown store is the Polish one', async () => {
+  const html = '<dl><dt>Kategoria</dt><dd><a>Fantasy</a><a>Lektury szkoła średnia</a></dd><dt>ISBN</dt><dd>1234567890123</dd></dl>';
+  const provider = new Audioteka({ http: fakeHttp([]), language: 'xx' });
+  assert.equal(provider.searchUrl, 'https://audioteka.com/pl/szukaj/');
+  const full = provider.parseDetail(html, { id: 'x', title: 'x', url: 'https://audioteka.com/pl/audiobook/x/' });
+  assert.deepEqual(full.genres, ['Fantasy']);
+  assert.deepEqual(full.languages, ['polish']);
+  assert.equal(full.identifiers.isbn, undefined); // not an ISBN
+});
+
+test('isbn: only numbers whose check digit holds', () => {
+  assert.equal(validIsbn('978-83-7578-063-5'), '9788375780635');
+  assert.equal(validIsbn('0-306-40615-2'), '0306406152');
+  assert.equal(validIsbn('0408311111451'), undefined); // Storytel's own number
+  assert.equal(validIsbn('9788375780636'), undefined);
+  assert.equal(validIsbn(''), undefined);
+});
+
+test('storytel: its own product number is not an ISBN', () => {
+  const provider = new Storytel({ http: fakeHttp([]) });
+  const item = (isbn) => ({ book: { name: 'Tytuł', authorsAsString: 'A', series: [] }, abook: { length: 60000, isbn } });
+  assert.equal(provider.formatBookMetadata(item('0408311111451'), 'audiobook').isbn, undefined);
+  assert.equal(provider.formatBookMetadata(item('9788375780635'), 'audiobook').isbn, '9788375780635');
+});
+
+test('audible: translators in the store\'s language, large covers asked for', async () => {
+  const http = fakeHttp([['api.audible.de', { products: [{ asin: 'B001', title: 'Der letzte Wunsch', authors: [{ name: 'Andrzej Sapkowski' }, { name: 'Erik Simon - Übersetzer' }, { name: 'Jan Kowalski - tłumacz' }], product_images: { 500: 'https://m.media-amazon.com/a.jpg', 1024: 'https://m.media-amazon.com/b.jpg' } }] }]]);
+  const { matches } = await new Audible({ http, language: 'de' }).searchBooks('Der letzte Wunsch covers');
+  assert.equal(http.calls[0].params.image_sizes, '500,1024');
+  assert.deepEqual(matches[0].authors, ['Andrzej Sapkowski']);
+  assert.equal(matches[0].cover, 'https://m.media-amazon.com/b.jpg');
 });
 
 test('provider metadata file matches the provider modules', () => {

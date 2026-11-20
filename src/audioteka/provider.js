@@ -2,6 +2,8 @@ const cheerio = require('cheerio');
 const NodeCache = require('node-cache');
 const { createHttp } = require('../lib/http');
 
+const { validIsbn } = require('../lib/isbn');
+
 const text = (s) => (s || '').replace(/\s+/g, ' ').trim();
 const unique = (list) => [...new Set(list.filter(Boolean))];
 
@@ -9,14 +11,14 @@ function cleanCoverUrl(url) {
   return url ? url.split('?')[0] : url;
 }
 
-/** "6 godzin 28 minut", "45 minut", "12 hodin 3 minuty" -> minutes. */
+/** "6 godzin 28 minut", "45 minut", "12 hodin 3 minuty", "8 Stunden 42 Minuten" -> minutes. */
 function parseDuration(durationStr) {
   const s = text(durationStr);
   if (!s) return undefined;
   const found = s.match(/^(?:(\d+)\s+[^\d\s]+)?\s*(?:(\d+)\s+[^\d\s]+)$/);
   if (!found) return undefined;
-  // One number alone is hours when the unit says so ("6 godzin", "6 hodin"), minutes otherwise.
-  if (!found[1] && /\d+\s+(?:godz|hod)/i.test(s)) return parseInt(found[2], 10) * 60;
+  // One number alone is hours when the unit says so ("6 godzin", "6 hodin", "6 Stunden"), minutes otherwise.
+  if (!found[1] && /\d+\s+(?:godz|hod|stund)/i.test(s)) return parseInt(found[2], 10) * 60;
   return (parseInt(found[1] || '0', 10) * 60) + parseInt(found[2] || '0', 10);
 }
 
@@ -32,6 +34,14 @@ function parseIsoDuration(value) {
 const LABELS = {
   pl: { narrator: ['Głosy', 'Czyta'], duration: ['Długość'], publisher: ['Wydawca'], type: ['Typ'], genres: ['Kategoria'], language: ['Język'] },
   cz: { narrator: ['Interpret', 'Čte', 'Hlasy'], duration: ['Délka', 'Stopáž'], publisher: ['Vydavatel', 'Nakladatel'], type: ['Typ'], genres: ['Kategorie', 'Žánr'], language: ['Jazyk'] },
+  de: { narrator: ['Sprecher'], duration: ['Dauer'], publisher: ['Verlag'], type: ['Typ'], genres: ['Kategorie'], language: ['Sprache'] },
+};
+
+// One site per store: its search page, the language asked for and the name its books' language gets.
+const STORES = {
+  pl: { search: 'https://audioteka.com/pl/szukaj/', accept: 'pl-PL,pl;q=0.9', language: 'polish' },
+  cz: { search: 'https://audioteka.com/cz/vyhledavani/', accept: 'cs-CZ,cs;q=0.9', language: 'czech' },
+  de: { search: 'https://audioteka.com/de/search/', accept: 'de-DE,de;q=0.9', language: 'german' },
 };
 
 class AudiotekaProvider {
@@ -41,6 +51,8 @@ class AudiotekaProvider {
     this.baseUrl = 'https://audioteka.com';
     this.opts = options || {};
     this.language = this.opts.language || process.env.LANGUAGE || 'pl';
+    // An unknown store is the Polish one, as before.
+    this.store = STORES[this.language] ? this.language : 'pl';
     // Respect explicit boolean in options.extra.addLinkToDescription. If undefined, fall back to env/default.
     if (this.opts.extra && typeof this.opts.extra.addLinkToDescription !== 'undefined') {
       this.addAudiotekaLinkToDescription = !!this.opts.extra.addLinkToDescription;
@@ -50,9 +62,9 @@ class AudiotekaProvider {
     this.timeoutMs = this.opts.timeoutMs || 10000;
     this.http = this.opts.http || createHttp({
       timeoutMs: this.timeoutMs,
-      headers: { 'Accept-Language': this.language === 'cz' ? 'cs-CZ,cs;q=0.9' : 'pl-PL,pl;q=0.9' },
+      headers: { 'Accept-Language': STORES[this.store].accept },
     });
-    this.searchUrl = this.language === 'cz' ? 'https://audioteka.com/cz/vyhledavani/' : 'https://audioteka.com/pl/szukaj/';
+    this.searchUrl = STORES[this.store].search;
     this.cache = new NodeCache({ stdTTL: 600 });
   }
 
@@ -132,7 +144,7 @@ class AudiotekaProvider {
   /** `null` drops the product (a Czech-store listing that is not in Czech). */
   parseDetail(html, match) {
     const $ = cheerio.load(String(html));
-    const labels = LABELS[this.language === 'cz' ? 'cz' : 'pl'];
+    const labels = LABELS[this.store];
 
     // The page describes the product twice: as JSON-LD (schema.org Audiobook) and as a details list
     // (<dt>Głosy</dt><dd>...</dd>). JSON-LD first, the list fills what it lacks.
@@ -166,6 +178,8 @@ class AudiotekaProvider {
     if (!publisher) publisher = names(product.brand).join(', ') || names(product.publisher).join(', ');
     let genres = ddList(labels.genres);
     if (!genres.length) genres = names(product.genre);
+    // School reading lists ("Lektury szkoła średnia") are shop shelves, not genres.
+    genres = genres.filter((g) => !/^Lektury\b/i.test(g));
     const duration = parseDuration(dd(labels.duration).text()) || parseIsoDuration(product.duration);
     const productType = text(dd(labels.type).text());
 
@@ -176,7 +190,7 @@ class AudiotekaProvider {
     const ratingValue = Number(product.aggregateRating && product.aggregateRating.ratingValue);
     const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? ratingValue : (match.rating || null);
 
-    const descriptionHtml = $('[class*="description_description__"], .product-description, .book-description').first().html();
+    const descriptionHtml = $('[class*="description_description__"], #audiobook-description, .product-description, .book-description').first().html();
     const sanitizedDescription = descriptionHtml
       ? descriptionHtml
           .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
@@ -204,11 +218,15 @@ class AudiotekaProvider {
       series: [],
       tags,
       rating,
-      languages: this.language === 'cz' ? ['czech'] : ['polish'],
+      languages: [STORES[this.store].language],
       identifiers: {
         audioteka: match.id,
       },
     };
+
+    // Some stores list the ISBN (the German one does).
+    const isbn = validIsbn(text(dd(['ISBN']).text())) || validIsbn(product.isbn);
+    if (isbn) fullMetadata.identifiers.isbn = isbn;
 
     const subtitle = product.alternativeHeadline || product.subtitle;
     if (typeof subtitle === 'string' && subtitle.trim()) fullMetadata.subtitle = subtitle.trim();
@@ -221,4 +239,4 @@ module.exports = AudiotekaProvider;
 module.exports.parseDuration = parseDuration;
 module.exports.parseIsoDuration = parseIsoDuration;
 // supported languages for admin UI
-module.exports.supportedLanguages = ['pl', 'cz'];
+module.exports.supportedLanguages = Object.keys(STORES);

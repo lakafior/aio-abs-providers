@@ -153,11 +153,15 @@ class LubimyCzytacProvider {
       return dt.length ? dt.next("dd") : $();
     };
 
-    const cover =
+    // An audiobook's record has no image: its page's preview picture is the cover. The site's stand-in
+    // for a missing cover is no cover.
+    const coverFound =
       $("a#js-lightboxCover").attr("href") ||
       $(".book-cover__link").attr("href") ||
       (typeof book.image === "string" ? book.image : "") ||
+      $('meta[property="og:image"]').attr("content") ||
       "";
+    const cover = coverFound.includes("default-book") ? "" : coverFound.replace(/^http:\/\//, "https://");
 
     const publisher =
       text($('span.book__txt:contains("Wydawnictwo:")').find("a").first().text()) ||
@@ -176,8 +180,16 @@ class LubimyCzytacProvider {
     const cycle =
       text($('span.d-none.d-sm-block.mt-1:contains("Cykl:")').find("a").first().text()) ||
       text(dd("Cykl").find("a").first().text() || dd("Cykl").text());
-    const series = this.extractSeriesName(cycle);
-    const seriesIndex = this.extractSeriesIndex(cycle);
+    let series = this.extractSeriesName(cycle);
+    let seriesIndex = this.extractSeriesIndex(cycle);
+    // The page's record names the series too. A "/cykl/" is the author's cycle; a "/seria/" is only the
+    // publisher's imprint and is not a series.
+    const part = [].concat(book.isPartOfSeries || []).find((s) => s && typeof s.url === "string" && s.url.includes("/cykl/"));
+    if (!series && part && typeof part.name === "string" && part.name.trim()) {
+      series = text(part.name);
+      const position = String(part.position ?? "").replace(",", ".");
+      if (position) seriesIndex = /^\d+$/.test(position) ? parseInt(position, 10) : position;
+    }
 
     const ratingValue = parseFloat(
       ($('meta[property="books:rating:value"]').attr("content") || text($(".rating-value .big-number").first().text())).replace(",", "."),
@@ -190,7 +202,8 @@ class LubimyCzytacProvider {
       (typeof book.isbn === "string" ? book.isbn : "") ||
       "";
 
-    const publishedDate = this.extractPublishedDate($, dd);
+    const publishedDate = this.extractPublishedDate($, dd, book);
+    const original = text(dd("Tytuł oryginału").text());
     const pages = this.extractPages($, ld);
     const translator = text(dd("Tłumacz").find("a").map((i, el) => text($(el).text())).get().join(", ")) || null;
     const narrator = text(dd("Lektor").text()) || text(dd("Czyta").text());
@@ -216,6 +229,8 @@ class LubimyCzytacProvider {
 
     const subtitle = book.alternativeHeadline || book.subtitle;
     if (typeof subtitle === "string" && subtitle.trim()) fullMetadata.subtitle = subtitle.trim();
+    // What a translation is called in its own language.
+    if (original && original !== match.title) fullMetadata.originalTitle = original;
 
     return fullMetadata;
   }
@@ -234,12 +249,23 @@ class LubimyCzytacProvider {
     return /^\d+$/.test(value) ? parseInt(value, 10) : value;
   }
 
-  /** First edition date as `YYYY-MM-DD` (or whatever the site shows), falling back to this edition's date. */
-  extractPublishedDate($, dd) {
-    const first = text($('dt[title*="Data pierwszego wydania"]').first().next("dd").text());
-    const value = first || text(dd("Data wydania").text());
-    const iso = value.match(/\d{4}(?:-\d{2}(?:-\d{2})?)?/);
-    return iso ? iso[0] : null;
+  /**
+   * As `YYYY-MM-DD` (or whatever the site shows): the first Polish edition, then the first edition anywhere,
+   * then this edition's date.
+   */
+  extractPublishedDate($, dd, book = {}) {
+    const titled = (title) => text($("dt").filter((i, el) => ($(el).attr("title") || "").trim() === title).first().next("dd").text());
+    const values = [
+      titled("Data pierwszego wydania polskiego") || text(dd("Data 1. wyd. pol.").text()),
+      text($('dt[title*="Data pierwszego wydania"]').first().next("dd").text()) || text(dd("Data 1. wydania").text()),
+      text(dd("Data wydania").text()),
+      typeof book.datePublished === "string" ? book.datePublished : "",
+    ];
+    for (const value of values) {
+      const iso = value.match(/\d{4}(?:-\d{2}(?:-\d{2})?)?/);
+      if (iso) return iso[0];
+    }
+    return null;
   }
 
   extractPages($, ld) {

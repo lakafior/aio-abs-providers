@@ -10,8 +10,8 @@
     "audioteka": {
       "label": "Audioteka",
       "kinds": ["audiobook"],
-      "supportedLanguages": ["pl", "cz"],
-      "languageMeaning": "Audioteka store: pl (audioteka.com/pl) or cz (audioteka.com/cz).",
+      "supportedLanguages": ["pl", "cz", "de"],
+      "languageMeaning": "Audioteka store: pl (audioteka.com/pl), cz (audioteka.com/cz) or de (audioteka.com/de).",
       "extra": {
         "addLinkToDescription": { "type": "boolean", "default": true, "description": "Put a link to the Audioteka page at the top of the description." }
       }

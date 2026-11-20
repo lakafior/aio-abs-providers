@@ -215,7 +215,7 @@ test('admin: metadata lists every provider, config is validated and saved', asyn
   const { get, file } = await startApp(t);
   const meta = (await get('/admin/providers/meta')).json;
   assert.deepEqual(meta.map((m) => m.name), ['lubimyczytac', 'audioteka', 'storytel', 'audible']);
-  assert.deepEqual(meta[1].supportedLanguages, ['pl', 'cz']);
+  assert.deepEqual(meta[1].supportedLanguages, ['pl', 'cz', 'de']);
 
   const put = (body) => get('/admin/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const bad = await put({ providers: { audioteka: { enabled: 'tak' } } });

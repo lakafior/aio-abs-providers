@@ -1,5 +1,6 @@
 const NodeCache = require('node-cache');
 const { createHttp } = require('../lib/http');
+const { validIsbn } = require('../lib/isbn');
 
 const cache = new NodeCache({
     stdTTL: 600
@@ -246,7 +247,8 @@ class StorytelProvider {
             description: this.ensureString(abook ? abook.description : ebook?.description),
             publisher: this.ensureString(abook ? abook.publisher?.name : ebook?.publisher?.name),
             publishedYear: (abook ? abook.releaseDateFormat : ebook?.releaseDateFormat)?.substring(0, 4),
-            isbn: this.ensureString(abook ? abook.isbn : ebook?.isbn)
+            // Audiobooks carry Storytel's own numbers in the ISBN field; only real ISBNs count.
+            isbn: validIsbn(abook ? abook.isbn : ebook?.isbn)
         };
 
         // Remove undefined values

@@ -17,6 +17,8 @@ const DOMAINS = {
   jp: 'co.jp',
 };
 
+const TRANSLATOR = /\s[-–—]\s*(?:translator|traducteur|traductrice|übersetzer|übersetzerin|traduttore|traduttrice|traductor|traductora|tłumacz)$/i;
+
 /**
  * Audible's public catalog API (the one Audiobookshelf's built-in Audible provider uses): no key, JSON.
  * Search answers everything the snippet needs, so getFullMetadata only reshapes it (no detail requests).
@@ -43,6 +45,8 @@ class AudibleProvider {
       num_results: String(this.maxResults),
       products_sort_by: 'Relevance',
       response_groups: 'contributors,media,product_desc,product_attrs,series,category_ladders',
+      // Without it the API answers one 500 px cover.
+      image_sizes: '500,1024',
     };
     // Title and author apart when the caller gives the author, else free keywords.
     if (author) {
@@ -61,10 +65,10 @@ class AudibleProvider {
 
   format(product) {
     if (!product || !product.title) return null;
-    // Translators are listed as authors ("Name - translator").
+    // Translators are listed as authors ("Name - translator"), in the store's language.
     const authors = (product.authors || [])
       .map(a => a && a.name)
-      .filter(name => name && !/\s[-–—]\s*translator$/i.test(name));
+      .filter(name => name && !TRANSLATOR.test(name));
     const narrators = (product.narrators || []).map(n => n && n.name).filter(Boolean);
     const images = product.product_images || {};
     const coverKey = Object.keys(images).sort((a, b) => Number(b) - Number(a))[0];
