@@ -35,8 +35,16 @@ function writeConfigFile(file, cfg) {
   validateConfig(cfg);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
-  fs.renameSync(tmp, file);
+  const body = JSON.stringify(cfg, null, 2) + '\n';
+  try {
+    fs.writeFileSync(tmp, body, 'utf8');
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    // A file that is itself a mount point (a single-file Docker volume) cannot be renamed over, and its
+    // folder may not be writable: write it in place.
+    fs.rmSync(tmp, { force: true });
+    fs.writeFileSync(file, body, 'utf8');
+  }
 }
 
 /**

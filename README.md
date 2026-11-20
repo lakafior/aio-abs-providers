@@ -79,7 +79,7 @@ Titles and authors are compared without case, diacritics or punctuation, so `wie
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PORT` | `4000` | Port to listen on. `0` picks a free one; the first line of output says which: `Backbone listening on http://127.0.0.1:53124 (config: ...)`. |
+| `PORT` | `4000` | Port to listen on. `0` picks a free one; the output line starting with `Backbone listening on` says which: `Backbone listening on http://127.0.0.1:53124 (config: ...)`. |
 | `HOST` | all interfaces | Interface to bind. With `127.0.0.1`, `::1` or `localhost` the server also refuses requests whose `Host` header names anything else. |
 | `CONFIG_PATH` | `src/config/config.json` next to the code | Config file. Created from the bundled default (with its folders) when it does not exist. Read again whenever it changes on disk, so no restart is needed; a file that does not parse or validate is ignored and the last good config stays in use (`/healthz` then reports `configError`). |
 | `API_KEY` | none | Shared key, see below. |
@@ -104,7 +104,8 @@ node src/backbone/server.js
 - Ready when `GET /healthz` answers 200 (about 0.3–0.8 s after start on Node 24; around 48 MB of memory when idle).
 - Register it in Audiobookshelf as a custom metadata provider (`POST /api/custom-metadata-providers` with `url: "http://127.0.0.1:<port>"`, `mediaType: "book"`, `authHeaderValue: "<the API_KEY>"`). Audiobookshelf then calls `GET /search?mediaType=book&query=...&author=...&isbn=...` with that `Authorization` header.
 - Settings: write the config file yourself, also while the backbone is not running. The format is in [docs/CONFIG.md](docs/CONFIG.md); `src/config/schema.json` validates it and `src/config/providers.meta.json` lists the sources with their languages. A running backbone picks the change up within a second.
-- To stop it: close its stdin, or send `SIGTERM`.
+- To stop it: close its stdin, or send `SIGTERM`. With `EXIT_ON_STDIN_CLOSE=1` give the process a pipe you keep open as stdin; `/dev/null` reads as closed and the server exits at once.
+- Leave `NODE_USE_SYSTEM_CA` unset for the child process (see the note in `src/lib/http.js`).
 
 ## API key
 
