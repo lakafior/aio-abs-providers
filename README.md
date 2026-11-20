@@ -34,7 +34,7 @@ Searches multiple providers (lubimyczytac, audioteka, storytel, ...) and returns
   - `titleWeight` (0–100) — weighting between title vs author similarity (sums to 100).
   - `similarityThreshold` (0–100) — minimal similarity (%) to request full metadata.
   - `searchTimeoutMs` (1000–60000, default 9000) — how long one search may take; sources that have not answered by then are left out (Audiobookshelf itself waits 10 s).
-  - `mergeBestResults` (bool) — synthesize merged top result.
+  - `mergeBestResults` (bool) — synthesize merged top result from the best match and the results of other providers for the same title, author and kind (an audiobook is not mixed with the printed book).
   - `mergePreferences` (map) — prefer a provider for specific fields (cover, narrator, series, genres, tags, subtitle, isbn, etc.).
   - `mergeDebug` (bool) — enable extra merge logs.
 
@@ -103,7 +103,7 @@ node src/backbone/server.js
 
 - Ready when `GET /healthz` answers 200 (about 0.3–0.8 s after start on Node 24; around 48 MB of memory when idle).
 - Register it in Audiobookshelf as a custom metadata provider (`POST /api/custom-metadata-providers` with `url: "http://127.0.0.1:<port>"`, `mediaType: "book"`, `authHeaderValue: "<the API_KEY>"`). Audiobookshelf then calls `GET /search?mediaType=book&query=...&author=...&isbn=...` with that `Authorization` header.
-- Settings: write the config file yourself, also while the backbone is not running. The format is in [docs/CONFIG.md](docs/CONFIG.md); `src/config/schema.json` validates it and `src/config/providers.meta.json` lists the sources with their languages. A running backbone picks the change up within a second.
+- Settings: write the config file yourself, also while the backbone is not running. The format is in [docs/CONFIG.md](docs/CONFIG.md); `src/contract/schema.json` validates it and `src/contract/providers.meta.json` lists the sources with their languages. A running backbone picks the change up within a second.
 - To stop it: close its stdin, or send `SIGTERM`. With `EXIT_ON_STDIN_CLOSE=1` give the process a pipe you keep open as stdin; `/dev/null` reads as closed and the server exits at once.
 - Leave `NODE_USE_SYSTEM_CA` unset for the child process (see the note in `src/lib/http.js`).
 
@@ -136,7 +136,7 @@ services:
       - NODE_ENV=production
       - API_KEY=change-me   # required once the port or a tunnel makes it reachable from outside
     volumes:
-      # The app reads /app/src/config; copy src/config (config.json + schema.json) here first.
+      # The app reads /app/src/config/config.json; copy src/config/config.json here first.
       - ./src/config:/app/src/config
       - ./logs:/logs
     restart: unless-stopped
@@ -203,4 +203,4 @@ npm run test:live    # against the real sources, by hand; add a source name to r
   - Implement `getFullMetadata(snippet)` → return full normalized metadata (ABS shape)
   - Avoid performing detail-page fetches inside `searchBooks`
   - Make requests through `options.http || createHttp(...)` (`src/lib/http.js`) and let failures throw: the backbone reports them and the tests replace `http` with recorded responses
-  - Add the provider to `src/config/providers.meta.json` and a parser test with a trimmed capture in `test/fixtures`
+  - Add the provider to `src/contract/providers.meta.json` and a parser test with a trimmed capture in `test/fixtures`

@@ -145,8 +145,10 @@ test('search: merging on and off', async (t) => {
   assert.equal(json.matches.length, 4);
   const [merged] = absMap(json);
   assert.equal(json.matches[0]._provider, 'merged');
+  // the two audiobooks are merged; the printed book (and its ISBN) stays a result of its own
+  assert.deepEqual(json.matches[0]._mergedFrom.map((i) => i.provider), ['audioteka', 'lubimyczytac']);
   assert.deepEqual(merged, { title: 'Zrost', author: 'Robert Małecki', narrator: 'Filip Kosior', publishedYear: '2020', description: 'Opis',
-    isbn: '9788300000001', series: [{ series: 'Bernard Gross', sequence: '3' }], language: 'pol', duration: 600 });
+    series: [{ series: 'Bernard Gross', sequence: '3' }], language: 'pol', duration: 600 });
 });
 
 test('search: a failing source is reported and the others still answer', async (t) => {

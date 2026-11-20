@@ -178,16 +178,27 @@ const MERGE_SINGLE_FIELDS = ['title', 'subtitle', 'authors', 'narrator', 'descri
 const COUNTED_FIELDS = ['title', 'authors', 'narrator', 'description', 'cover', 'type', 'url', 'id', 'languages',
   'publisher', 'publishedDate', 'series', 'genres', 'tags', 'identifiers'];
 
+/** Same work in the same form: equal title, the same kind (audiobook or book) and an author in common. */
+function sameEdition(a, b) {
+  if (norm(a.title) !== norm(b.title) || isAudio(a) !== isAudio(b)) return false;
+  const authorsA = (a.authors || []).map(norm).filter(Boolean);
+  const authorsB = new Set((b.authors || []).map(norm).filter(Boolean));
+  if (!authorsA.length || !authorsB.size) return authorsA.length === authorsB.size;
+  return authorsA.some((name) => authorsB.has(name));
+}
+
 /**
- * Builds one result out of the results that share the top similarity (expects `results` sorted and in the
- * `toAbsMatch` shape). Each field comes from the provider named in `prefs[field]` when that provider has it,
- * otherwise from the highest-priority result that has it; genres, tags and languages without a preferred
- * provider are the union. Returns `null` when there is nothing to merge or the top result already has it all.
+ * Builds one result out of the top result and the results that describe the same thing: the same score, title
+ * and kind, and an author in common (expects `results` sorted and in the `toAbsMatch` shape). An audiobook is
+ * never mixed with the printed book, nor with another work that merely scored the same. Each field comes from
+ * the provider named in `prefs[field]` when that provider has it, otherwise from the highest-priority result
+ * that has it; genres, tags and languages without a preferred provider are the union. Returns `null` when
+ * there is nothing to merge or the top result already has it all.
  */
 function mergeBestResults(results, prefs = {}) {
   if (!results.length) return null;
   const topSim = results[0].similarity || 0;
-  const group = results.filter((r) => Math.abs((r.similarity || 0) - topSim) <= 1e-6);
+  const group = results.filter((r) => Math.abs((r.similarity || 0) - topSim) <= 1e-6 && sameEdition(results[0], r));
   if (group.length < 2) return null;
 
   const filled = (item) => COUNTED_FIELDS.filter((f) => has(item[f])).length;

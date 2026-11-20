@@ -9,7 +9,7 @@ services:
       - NODE_ENV=production
       - API_KEY=change-me   # required once the port or a tunnel makes it reachable from outside
     volumes:
-      # The app reads /app/src/config; copy src/config (config.json + schema.json) here first.
+      # The app reads /app/src/config/config.json; copy src/config/config.json here first.
       - ./src/config:/app/src/config
       - ./logs:/logs
     restart: unless-stopped

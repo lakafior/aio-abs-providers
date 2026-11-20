@@ -6,7 +6,7 @@ const LubimyCzytac = require('../../src/lubimyczytac/provider');
 const Audioteka = require('../../src/audioteka/provider');
 const Storytel = require('../../src/storytel/provider');
 const Audible = require('../../src/audible/provider');
-const meta = require('../../src/config/providers.meta.json');
+const meta = require('../../src/contract/providers.meta.json');
 
 test('lubimyczytac: a plain title is searched as it is', () => {
   const clean = LubimyCzytac.cleanTitle;

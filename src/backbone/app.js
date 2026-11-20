@@ -6,7 +6,7 @@ const NodeCache = require('node-cache');
 
 const { mapWithConcurrency, statusOf } = require('../lib/http');
 const { norm, isAudio, scoreMatch, toAbsMatch, sortResults, mergeBestResults, ISBN_DIGITS } = require('./pipeline');
-const providersMeta = require('../config/providers.meta.json');
+const providersMeta = require('../contract/providers.meta.json');
 
 const truthy = (v) => /^(1|true|yes|on)$/i.test(String(v || '').trim());
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);

@@ -136,6 +136,18 @@ test('mergeBestResults: without preferences lists are joined and a series gets i
   assert.equal(merged.description, '<p>Opis z Audioteki</p>');
 });
 
+test('mergeBestResults: only the same work in the same form is merged', () => {
+  const book = { ...lc, id: '9', type: 'book', isbn: '9788300000009', identifiers: { isbn: '9788300000009' } };
+  const comic = { ...lc, id: '8', authors: ['Ktoś Inny'], author: 'Ktoś Inny', description: 'Komiks' };
+  const other = { ...lc, id: '7', title: 'Zrost. Wydanie drugie' };
+  const merged = mergeBestResults([at, lc, book, comic, other], { description: 'lubimyczytac' });
+  assert.deepEqual(merged._mergedFrom, [{ provider: 'audioteka', id: 'zrost' }, { provider: 'lubimyczytac', id: '1' }]);
+  assert.equal(merged.isbn, '9788300000000'); // not the printed book's
+  assert.equal(merged.description, 'Opis z LC'); // not the comic's
+  // the top result alone in its kind: nothing to merge, whatever else scored the same
+  assert.equal(mergeBestResults([at, book, comic], {}), null);
+});
+
 test('mergeBestResults: nothing to merge', () => {
   assert.equal(mergeBestResults([], {}), null);
   assert.equal(mergeBestResults([at], {}), null);

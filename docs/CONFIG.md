@@ -3,8 +3,8 @@
 Everything needed to build a settings form for the backbone without reading its code.
 
 - The file is one JSON document, UTF-8. Its location is `CONFIG_PATH` (default: `src/config/config.json` next to the code).
-- `src/config/schema.json` (JSON Schema draft-07) is the authority: the backbone validates the file with it on every load and on every save through `PUT /admin/config`. Unknown keys are rejected, except inside a provider's `extra` and inside `mergePreferences`.
-- `src/config/providers.meta.json` lists the sources: label, what they return, the values `language` may take and their `extra` settings. It is a static file, readable while the backbone is not running. `GET /admin/providers/meta` serves the same list.
+- `src/contract/schema.json` (JSON Schema draft-07) is the authority: the backbone validates the file with it on every load and on every save through `PUT /admin/config`. Unknown keys are rejected, except inside a provider's `extra` and inside `mergePreferences`.
+- `src/contract/providers.meta.json` lists the sources: label, what they return, the values `language` may take and their `extra` settings. It is a static file, readable while the backbone is not running. `GET /admin/providers/meta` serves the same list.
 - `src/config/config.json` is the default config; the backbone copies it to `CONFIG_PATH` when no file exists there.
 
 ## Who may write it, and when
@@ -50,7 +50,7 @@ Any process may rewrite the file at any time, whether the backbone runs or not.
 | `similarityThreshold` | integer | 0–100 | `30` | `75` | Results scoring below this percentage are dropped, and their detail pages are never fetched. Higher = fewer, surer results and less load on the sources. |
 | `searchTimeoutMs` | integer | 1000–60000 | `9000` | `9000` | Time limit of one whole search in milliseconds. Sources that have not answered are left out. Audiobookshelf gives up after 10000. |
 | `maxProvidersParallel` | integer | ≥ 1 | `5` | `3` | How many sources are asked at the same time. |
-| `mergeBestResults` | boolean | | `false` | `true` | Put one combined result first, built from all results that share the best score. |
+| `mergeBestResults` | boolean | | `false` | `true` | Put one combined result first, built from the best result and the others that describe the same thing: same score, same title, same kind (audiobook or book) and an author in common. |
 | `mergeDebug` | boolean | | `false` | – | Log which source each field of the combined result came from. |
 | `mergePreferences` | object | | – | see file | For the combined result: field name → name of the source to take that field from, or `null` for "whichever has it" (the source with the highest `priority` first). |
 

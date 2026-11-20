@@ -5,7 +5,7 @@ const Ajv = require('ajv');
 // The config shipped with the code: used in place when CONFIG_PATH is not set (the Docker layout), and as
 // the template for a config file that does not exist yet.
 const BUNDLED_CONFIG_PATH = path.resolve(__dirname, '..', 'config', 'config.json');
-const SCHEMA_PATH = path.resolve(__dirname, '..', 'config', 'schema.json');
+const SCHEMA_PATH = path.resolve(__dirname, '..', 'contract', 'schema.json');
 
 const ajv = new Ajv({ allErrors: true, useDefaults: true });
 const schema = JSON.parse(fs.readFileSync(SCHEMA_PATH, 'utf8'));
