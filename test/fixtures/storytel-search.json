@@ -1,0 +1,384 @@
+{
+ "books": [
+  {
+   "abook": {
+    "allowedToStream": true,
+    "bitRate": 48,
+    "consumableFormatId": "178514",
+    "copyright": null,
+    "description": "Szóste opowiadanie z Tomu Ostatnie Życzenie. Geralt i Jaskier łowią ryby nad rzeką. W ich sieć zaplątał się pewien tajemniczy dzban. Jaskier twierdzi, że jest w niej dżin. Geralt chce aby Jaskier pokazał mu dzban, ale ba…",
+    "display": true,
+    "edition": 0,
+    "id": 64043,
+    "isComing": 0,
+    "isbn": "0408311111451",
+    "length": 9127000,
+    "lengthInHHMM": "2H 32M",
+    "narratorAsString": "Zespół lektorów",
+    "narrators": [
+     {
+      "description": null,
+      "id": 29475,
+      "language": null,
+      "name": "Zespół lektorów"
+     }
+    ],
+    "product": null,
+    "publisher": {
+     "description": null,
+     "id": 824,
+     "name": "superNOWA"
+    },
+    "releaseDate": "20170930",
+    "releaseDateFormat": "2017-09-30",
+    "time": 9127000000
+   },
+   "abookMark": null,
+   "book": {
+    "AId": 64043,
+    "EId": 8789281,
+    "abridged": 0,
+    "authors": [
+     {
+      "description": null,
+      "id": 38634,
+      "language": null,
+      "name": "Andrzej Sapkowski"
+     }
+    ],
+    "authorsAsString": "Andrzej Sapkowski",
+    "category": {
+     "countryId": 21,
+     "description": "",
+     "id": 23,
+     "nr": 0,
+     "title": "",
+     "urlName": ""
+    },
+    "consumableId": "178514",
+    "cover": "/images/200x200/0000064043.jpg",
+    "coverE": "/images/e/200x200/0008789281.jpg",
+    "grade": 4.85,
+    "haveRead": 0,
+    "href": null,
+    "id": 112516,
+    "language": {
+     "id": 13,
+     "isoValue": "pl",
+     "localizedName": "polski",
+     "name": "Polish"
+    },
+    "largeCover": "/images/320x320/0000064043.jpg",
+    "largeCoverE": "/images/e/320x320/0008789281.jpg",
+    "lastBookmarkTimeStamp": 0,
+    "latestReleaseDate": "20241217",
+    "lengthTime": 9127000000,
+    "mappingStatus": 0,
+    "myGrade": 0,
+    "name": "Ostatnie życzenie",
+    "nrEndBookTotal": 0,
+    "nrEndBookWeek": 0,
+    "nrGrade": 13452,
+    "origName": "",
+    "progress": 0,
+    "season": null,
+    "series": [
+     {
+      "books": null,
+      "countryId": 1,
+      "id": 25360,
+      "name": "Wiedźmin. Opowiadania"
+     }
+    ],
+    "seriesOrder": 6,
+    "smallCover": "/images/80x80/0000064043.jpg",
+    "tags": [],
+    "translatorsAsString": "",
+    "type": 3
+   },
+   "ebook": {
+    "allowedToStream": true,
+    "consumableFormatId": "10584733",
+    "copyright": null,
+    "description": "Szóste opowiadanie z Tomu Ostatnie Życzenie. Geralt i Jaskier łowią ryby nad rzeką. W ich sieć zaplątał się pewien tajemniczy dzban. Jaskier twierdzi, że jest w niej dżin. Geralt chce aby Jaskier pokazał mu dzban, ale ba…",
+    "display": true,
+    "edition": 0,
+    "id": 8789281,
+    "isComing": 0,
+    "isbn": "9788375780819",
+    "nrChapters": 0,
+    "nrCharacters": 496074,
+    "nrPages": 0,
+    "product": null,
+    "publisher": {
+     "description": null,
+     "id": 824,
+     "name": "superNOWA"
+    },
+    "releaseDate": "20241217",
+    "releaseDateFormat": "2024-12-17"
+   },
+   "ebookMark": null,
+   "entityMetadata": null,
+   "id": 0,
+   "matchInFields": [
+    "name"
+   ],
+   "owns": 0,
+   "restriction": 0,
+   "shareUrl": "https://www.storytel.com/pl/pl/books/ostatnie-życzenie-178514",
+   "subscribesToSerie": 0
+  },
+  {
+   "abook": {
+    "allowedToStream": true,
+    "bitRate": 48,
+    "consumableFormatId": "728381",
+    "copyright": null,
+    "description": "Clara zupełnie się zmieniła. Czuje to w każdej komórce swojego ciała. Obudziła się w niej nowa tęsknota, coś, o czym nie sądziła, że ma to w sobie: zapragnęła mieć dziecko. \nKiedy Clara czegoś pragnie, nikt nie zdoła sta…",
+    "display": true,
+    "edition": 0,
+    "id": 1192692,
+    "isComing": 0,
+    "isbn": "9788726358322",
+    "length": 3306000,
+    "lengthInHHMM": "55M",
+    "narratorAsString": "Joanna Domańska",
+    "narrators": [
+     {
+      "description": null,
+      "id": 30438,
+      "language": null,
+      "name": "Joanna Domańska"
+     }
+    ],
+    "product": null,
+    "publisher": {
+     "description": null,
+     "id": 527,
+     "name": "Saga Egmont"
+    },
+    "releaseDate": "20200128",
+    "releaseDateFormat": "2020-01-28",
+    "time": 3306000000
+   },
+   "abookMark": null,
+   "book": {
+    "AId": 1192692,
+    "EId": 1056755,
+    "abridged": 0,
+    "authors": [
+     {
+      "description": null,
+      "id": 60055,
+      "language": null,
+      "name": "Alexandra Södergran"
+     }
+    ],
+    "authorsAsString": "Alexandra Södergran",
+    "category": {
+     "countryId": 21,
+     "description": null,
+     "id": 5,
+     "nr": 0,
+     "title": "Erotyk",
+     "urlName": "Erotyk"
+    },
+    "consumableId": "728382",
+    "cover": "/images/200x200/0001192692.jpg",
+    "coverE": "/images/e/200x200/0001056755.jpg",
+    "grade": 3.28,
+    "haveRead": 0,
+    "href": null,
+    "id": 1192691,
+    "language": {
+     "id": 13,
+     "isoValue": "pl",
+     "localizedName": "polski",
+     "name": "Polish"
+    },
+    "largeCover": "/images/320x320/0001192692.jpg",
+    "largeCoverE": "/images/e/320x320/0001056755.jpg",
+    "lastBookmarkTimeStamp": 0,
+    "latestReleaseDate": "20200128",
+    "lengthTime": 3306000000,
+    "mappingStatus": 1,
+    "myGrade": 0,
+    "name": "Ostatnie życzenie pani doktor - opowiadanie erotyczne",
+    "nrEndBookTotal": 0,
+    "nrEndBookWeek": 0,
+    "nrGrade": 43,
+    "origName": "",
+    "progress": 0,
+    "season": null,
+    "series": [],
+    "seriesOrder": 0,
+    "smallCover": "/images/80x80/0001192692.jpg",
+    "tags": [],
+    "translatorsAsString": "Agnieszka Strążyńska",
+    "type": 3
+   },
+   "ebook": {
+    "allowedToStream": true,
+    "consumableFormatId": "606506",
+    "copyright": null,
+    "description": "Clara zupełnie się zmieniła. Czuje to w każdej komórce swojego ciała. Obudziła się w niej nowa tęsknota, coś, o czym nie sądziła, że ma to w sobie: zapragnęła mieć dziecko. \nKiedy Clara czegoś pragnie, nikt nie zdoła sta…",
+    "display": true,
+    "edition": 0,
+    "id": 1056755,
+    "isComing": 0,
+    "isbn": "9788726208658",
+    "nrChapters": 0,
+    "nrCharacters": 25401,
+    "nrPages": 0,
+    "product": null,
+    "publisher": {
+     "description": null,
+     "id": 3398,
+     "name": "Lust"
+    },
+    "releaseDate": "20191211",
+    "releaseDateFormat": "2019-12-11"
+   },
+   "ebookMark": null,
+   "entityMetadata": null,
+   "id": 0,
+   "matchInFields": [
+    "name"
+   ],
+   "owns": 0,
+   "restriction": 0,
+   "shareUrl": "https://www.storytel.com/pl/pl/books/ostatnie-życzenie-pani-doktor-opowiadanie-erotyczne-728382",
+   "subscribesToSerie": 0
+  },
+  {
+   "abook": {
+    "allowedToStream": true,
+    "bitRate": 48,
+    "consumableFormatId": "9327515",
+    "copyright": null,
+    "description": "PRL-owskie więzienie, dzieciobójczyni i niespodziewana apelacja.\n\nAnna Teresa została skazana na karę śmierci za dzieciobójstwo. Kluczowe zeznania starszego świadka, Antoniego, wydawały się przesądzić o jej losie. Jednak…",
+    "display": true,
+    "edition": 0,
+    "id": 8012732,
+    "isComing": 0,
+    "isbn": "9788727216850",
+    "length": 22121000,
+    "lengthInHHMM": "6H 8M",
+    "narratorAsString": "Andrzej Hausner",
+    "narrators": [
+     {
+      "description": null,
+      "id": 46233,
+      "language": null,
+      "name": "Andrzej Hausner"
+     }
+    ],
+    "product": null,
+    "publisher": {
+     "description": null,
+     "id": 527,
+     "name": "Saga Egmont"
+    },
+    "releaseDate": "20241011",
+    "releaseDateFormat": "2024-10-11",
+    "time": 22121000000
+   },
+   "abookMark": null,
+   "book": {
+    "AId": 8012732,
+    "EId": 8012742,
+    "abridged": 0,
+    "authors": [
+     {
+      "description": null,
+      "id": 519414,
+      "language": null,
+      "name": "Jerzy Edigey"
+     }
+    ],
+    "authorsAsString": "Jerzy Edigey",
+    "category": {
+     "countryId": 21,
+     "description": null,
+     "id": 3,
+     "nr": 0,
+     "title": "Kryminał",
+     "urlName": "Kryminał"
+    },
+    "consumableId": "9329473",
+    "cover": "/images/200x200/0008012732.jpg",
+    "coverE": "/images/e/200x200/0008012742.jpg",
+    "grade": 4.46,
+    "haveRead": 0,
+    "href": null,
+    "id": 8012731,
+    "language": {
+     "id": 13,
+     "isoValue": "pl",
+     "localizedName": "polski",
+     "name": "Polish"
+    },
+    "largeCover": "/images/320x320/0008012732.jpg",
+    "largeCoverE": "/images/e/320x320/0008012742.jpg",
+    "lastBookmarkTimeStamp": 0,
+    "latestReleaseDate": "20241011",
+    "lengthTime": 22121000000,
+    "mappingStatus": 1,
+    "myGrade": 0,
+    "name": "Ostatnie życzenie Anny Teresy",
+    "nrEndBookTotal": 0,
+    "nrEndBookWeek": 0,
+    "nrGrade": 37,
+    "origName": "",
+    "progress": 0,
+    "season": null,
+    "series": [
+     {
+      "books": null,
+      "countryId": 1,
+      "id": 106965,
+      "name": "PRL kryminalnie"
+     }
+    ],
+    "seriesOrder": 1,
+    "smallCover": "/images/80x80/0008012732.jpg",
+    "tags": [],
+    "translatorsAsString": "",
+    "type": 3
+   },
+   "ebook": {
+    "allowedToStream": true,
+    "consumableFormatId": "9327510",
+    "copyright": null,
+    "description": "PRL-owskie więzienie, dzieciobójczyni i niespodziewana apelacja.\n\nAnna Teresa została skazana na karę śmierci za dzieciobójstwo. Kluczowe zeznania starszego świadka, Antoniego, wydawały się przesądzić o jej losie. Jednak…",
+    "display": true,
+    "edition": 0,
+    "id": 8012742,
+    "isComing": 0,
+    "isbn": "9788727216843",
+    "nrChapters": 0,
+    "nrCharacters": 311603,
+    "nrPages": 0,
+    "product": null,
+    "publisher": {
+     "description": null,
+     "id": 527,
+     "name": "Saga Egmont"
+    },
+    "releaseDate": "20241011",
+    "releaseDateFormat": "2024-10-11"
+   },
+   "ebookMark": null,
+   "entityMetadata": null,
+   "id": 0,
+   "matchInFields": [
+    "name"
+   ],
+   "owns": 0,
+   "restriction": 0,
+   "shareUrl": "https://www.storytel.com/pl/pl/books/ostatnie-życzenie-anny-teresy-9329473",
+   "subscribesToSerie": 0
+  }
+ ]
+}

@@ -1,0 +1,228 @@
+{
+ "product_filters": [],
+ "products": [
+  {
+   "asin": "B08G9PRS1K",
+   "asset_details": [
+    {
+     "assets": [],
+     "attributes": {},
+     "name": "full_cast_controls"
+    },
+    {
+     "assets": [
+      {
+       "asset_type": "reel_video",
+       "format": "MP4",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/c874af70-6d8a-47f1-9523-9029a94ebe96/mp4/reel.mp4"
+      },
+      {
+       "asset_type": "reel_first_frame",
+       "format": "JPG",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/c874af70-6d8a-47f1-9523-9029a94ebe96/poster/poster.jpg"
+      },
+      {
+       "asset_type": "loop_video",
+       "etag": "e93f669e62a070d18aeaf273df58fe42-9",
+       "format": "MP4",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/c874af70-6d8a-47f1-9523-9029a94ebe96/preview/preview_4s.mp4"
+      },
+      {
+       "asset_type": "loop_preview",
+       "format": "JPG",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/c874af70-6d8a-47f1-9523-9029a94ebe96/preview/preview_poster.jpg"
+      },
+      {
+       "asset_type": "reel_video",
+       "format": "DASH",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/video/e93f669e62a070d18aeaf273df58fe42-9/cmaf/reel.mpd"
+      },
+      {
+       "asset_type": "reel_video",
+       "format": "HlsCmaf",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/video/e93f669e62a070d18aeaf273df58fe42-9/cmaf/reel.m3u8"
+      },
+      {
+       "asset_type": "loop_video",
+       "format": "DASH",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/loop_video/e93f669e62a070d18aeaf273df58fe42-9/cmaf/loop_video.mpd"
+      },
+      {
+       "asset_type": "loop_video",
+       "format": "HlsCmaf",
+       "uri": "https://media.audible.com/immersive-reels/BK_ADBL_051843/loop_video/e93f669e62a070d18aeaf273df58fe42-9/cmaf/loop_video.m3u8"
+      }
+     ],
+     "attributes": {
+      "creativeType": "BTS",
+      "description": "An iconic audiobook. A blockbuster film. One incredible story. Listen to Project Hail Mary on Audible."
+     },
+     "name": "immersive-reels"
+    },
+    {
+     "name": "audio-discovery"
+    }
+   ],
+   "authors": [
+    {
+     "asin": "B00G0WYW92",
+     "name": "Andy Weir"
+    }
+   ],
+   "available_codecs": [
+    {
+     "enhanced_codec": "LC_128_44100_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_44_128"
+    },
+    {
+     "enhanced_codec": "LC_64_22050_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_22_64"
+    },
+    {
+     "enhanced_codec": "LC_32_22050_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_22_32"
+    },
+    {
+     "enhanced_codec": "LC_64_44100_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_44_64"
+    },
+    {
+     "enhanced_codec": "aax",
+     "format": "Enhanced",
+     "is_kindle_enhanced": false,
+     "name": "aax"
+    }
+   ],
+   "content_delivery_type": "MultiPartBook",
+   "content_type": "Product",
+   "format_type": "unabridged",
+   "has_children": true,
+   "is_adult_product": false,
+   "is_listenable": true,
+   "is_purchasability_suppressed": false,
+   "is_vvab": false,
+   "issue_date": "2021-05-04",
+   "language": "english",
+   "merchandising_summary": "<p>When the Sun is threatened by an alien microbe, the fate of humanity rests on the shoulders of an unlikely hero – and an even more unlikely friendship.</p>",
+   "narrators": [
+    {
+     "name": "Ray Porter"
+    }
+   ],
+   "product_images": {
+    "500": "https://m.media-amazon.com/images/I/51POf8gOyLL._SL500_.jpg"
+   },
+   "publication_datetime": "2021-05-04T07:00:00Z",
+   "publisher_name": "Audible Studios",
+   "release_date": "2021-05-04",
+   "runtime_length_min": 970,
+   "short_description": "A lone astronaut must save the earth from disaster in this incredible new science-based thriller from the number-one New York Times best-selling author of The Martian.",
+   "sku": "BK_ADBL_051843",
+   "sku_lite": "BK_ADBL_051843",
+   "social_media_images": {
+    "facebook": "https://m.media-amazon.com/images/I/51POf8gOyLL._SL10_UR1600,800_CR200,50,1200,630_CLa%7C1200,630%7C51POf8gOyLL.jpg%7C0,0,1200,630+82,82,465,465_PJAdblSocialShare-Gradientoverlay-largeasin-0to70,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Large,TopLeft,600,270_OU01_ZBLISTENING%20ON,617,216,52,500,AudibleSansMd,30,255,255,255.jpg",
+    "ig_bg": "https://m.media-amazon.com/images/I/51POf8gOyLL._SL200_BL80_UR1080,2160.jpg",
+    "ig_static_with_bg": "https://m.media-amazon.com/images/I/51POf8gOyLL._SL200_BL80_UR1080,2160_CLa%7C1080,2160%7C51POf8gOyLL.jpg%7C0,0,1080,2160+288,614,500,500_PJAdblSocialShare-Gradientoverlay-Radial,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Small,TopLeft,290,461_ZBLISTENING%20ON,290,410,52,500,AudibleSansMd,34,255,255,255_ZBProject%20Hail%20Mary,290,1183,52,500,AudibleSansSm,32,255,255,255_ZBAndy%20Weir,290,1247,52,500,AudibleSansRg,28,255,255,255.jpg",
+    "ig_sticker": "https://m.media-amazon.com/images/I/71UyRin7-TL._CLa%7C614,913%7C51POf8gOyLL.jpg%7C0,0,614,913+70,79,471,473_FMpng_PJAudible-logo-dk,BottomLeft,70,-100_ZAProject%20Hail%20Mary,70,560,65,500,AudibleSansSm,42,54,54,54_ZAby%20Andy%20Weir,70,640,52,517,AudibleSansRg,32,0,0,0.png",
+    "twitter": "https://m.media-amazon.com/images/I/51POf8gOyLL._SL10_UR1600,800_CR200,50,1024,512_CLa%7C1024,512%7C51POf8gOyLL.jpg%7C0,0,1024,512+67,67,376,376_PJAdblSocialShare-Gradientoverlay-twitter-largeasin-0to60,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Medium,TopLeft,490,223_OU01_ZBLISTENING%20ON,483,152,55,450,AudibleSansMd,32,255,255,255.jpg"
+   },
+   "thesaurus_subject_keywords": [
+    "literature-and-fiction"
+   ],
+   "title": "Project Hail Mary",
+   "video_url": "https://m.media-amazon.com/images/I/C1IwwWbQscL.mp4"
+  },
+  {
+   "asin": "B0CTZVXP8H",
+   "asset_details": [],
+   "authors": [
+    {
+     "asin": "B00G0WYW92",
+     "name": "Andy Weir"
+    }
+   ],
+   "available_codecs": [
+    {
+     "enhanced_codec": "LC_128_44100_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_44_128"
+    },
+    {
+     "enhanced_codec": "LC_64_44100_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_44_64"
+    },
+    {
+     "enhanced_codec": "LC_32_22050_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_22_32"
+    },
+    {
+     "enhanced_codec": "LC_64_22050_stereo",
+     "format": "Enhanced",
+     "is_kindle_enhanced": true,
+     "name": "aax_22_64"
+    },
+    {
+     "enhanced_codec": "aax",
+     "format": "Enhanced",
+     "is_kindle_enhanced": false,
+     "name": "aax"
+    }
+   ],
+   "content_delivery_type": "MultiPartBook",
+   "content_type": "Product",
+   "format_type": "unabridged",
+   "has_children": true,
+   "is_adult_product": false,
+   "is_listenable": true,
+   "is_purchasability_suppressed": false,
+   "is_vvab": false,
+   "issue_date": "2024-02-05",
+   "language": "italian",
+   "merchandising_summary": "<p>Quando Ryland Grace si risveglia, non ha assolutamente idea di dove si trovi né di chi sia. Vede solo che il suo corpo è collegato a decine di tubi, che gli...</p>",
+   "narrators": [
+    {
+     "name": "William Angiuli"
+    }
+   ],
+   "product_images": {
+    "500": "https://m.media-amazon.com/images/I/518QYtjHxGL._SL500_.jpg"
+   },
+   "publication_datetime": "2024-02-05T13:58:00Z",
+   "publisher_name": "Mondadori Libri S.p.A.",
+   "release_date": "2024-02-05",
+   "runtime_length_min": 1025,
+   "sku": "BK_MDOR_002873",
+   "sku_lite": "BK_MDOR_002873",
+   "social_media_images": {
+    "facebook": "https://m.media-amazon.com/images/I/518QYtjHxGL._SL10_UR1600,800_CR200,50,1200,630_CLa%7C1200,630%7C518QYtjHxGL.jpg%7C0,0,1200,630+82,82,465,465_PJAdblSocialShare-Gradientoverlay-largeasin-0to70,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Large,TopLeft,600,270_OU01_ZBLISTENING%20ON,617,216,52,500,AudibleSansMd,30,255,255,255.jpg",
+    "ig_bg": "https://m.media-amazon.com/images/I/518QYtjHxGL._SL200_BL80_UR1080,2160.jpg",
+    "ig_static_with_bg": "https://m.media-amazon.com/images/I/518QYtjHxGL._SL200_BL80_UR1080,2160_CLa%7C1080,2160%7C518QYtjHxGL.jpg%7C0,0,1080,2160+288,614,500,500_PJAdblSocialShare-Gradientoverlay-Radial,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Small,TopLeft,290,461_ZBLISTENING%20ON,290,410,52,500,AudibleSansMd,34,255,255,255_ZBProject%20Hail%20Mary,290,1183,52,500,AudibleSansSm,32,255,255,255_ZBAndy%20Weir,290,1247,52,500,AudibleSansRg,28,255,255,255.jpg",
+    "ig_sticker": "https://m.media-amazon.com/images/I/71UyRin7-TL._CLa%7C614,913%7C518QYtjHxGL.jpg%7C0,0,614,913+70,79,471,473_FMpng_PJAudible-logo-dk,BottomLeft,70,-100_ZAProject%20Hail%20Mary,70,560,65,500,AudibleSansSm,42,54,54,54_ZAby%20Andy%20Weir,70,640,52,517,AudibleSansRg,32,0,0,0.png",
+    "twitter": "https://m.media-amazon.com/images/I/518QYtjHxGL._SL10_UR1600,800_CR200,50,1024,512_CLa%7C1024,512%7C518QYtjHxGL.jpg%7C0,0,1024,512+67,67,376,376_PJAdblSocialShare-Gradientoverlay-twitter-largeasin-0to60,TopLeft,0,0_PJAdblSocialShare-AudibleLogo-Medium,TopLeft,490,223_OU01_ZBLISTENING%20ON,483,152,55,450,AudibleSansMd,32,255,255,255.jpg"
+   },
+   "title": "Project Hail Mary"
+  }
+ ],
+ "response_groups": [
+  "product_desc",
+  "always-returned",
+  "contributors",
+  "series",
+  "media",
+  "product_attrs"
+ ],
+ "total_results": 2
+}
