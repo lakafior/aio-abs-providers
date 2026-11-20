@@ -1,7 +1,26 @@
-const axios = require("axios");
 const cheerio = require("cheerio");
-const stringSimilarity = require("string-similarity");
 const NodeCache = require("node-cache");
+const { createHttp } = require("../lib/http");
+
+const text = (s) => (s || "").replace(/\s+/g, " ").trim();
+
+/** Every JSON-LD node on the page (`@graph` flattened); scripts that do not parse are skipped. */
+function jsonLdNodes($) {
+  const nodes = [];
+  $('script[type="application/ld+json"]').each((i, el) => {
+    try {
+      const data = JSON.parse($(el).text());
+      for (const node of Array.isArray(data) ? data : [data]) {
+        if (!node || typeof node !== "object") continue;
+        nodes.push(node);
+        if (Array.isArray(node["@graph"])) nodes.push(...node["@graph"]);
+      }
+    } catch (err) {
+      // not JSON: ignore
+    }
+  });
+  return nodes;
+}
 
 class LubimyCzytacProvider {
   constructor(options = {}) {
@@ -12,180 +31,100 @@ class LubimyCzytacProvider {
     this.language = this.opts.language || "pl";
     this.concurrency = this.opts.concurrency || 3;
     this.timeoutMs = this.opts.timeoutMs || 10000;
-    this.textDecoder = new TextDecoder("utf-8");
+    this.http = this.opts.http || createHttp({ timeoutMs: this.timeoutMs, headers: { "Accept-Language": "pl-PL,pl;q=0.9" } });
     this.cache = new NodeCache({ stdTTL: 600 });
   }
 
-  decodeText(text) {
-    return this.textDecoder.decode(new TextEncoder().encode(text));
+  /**
+   * The query as a title to search for. Audiobookshelf may send a folder or file name
+   * ("Autor - Seria Tom 2 - Tytuł (2019) [64kbps] czyta Jan Kowalski"); a plain title must come out unchanged.
+   * A query in double quotes is taken literally.
+   */
+  static cleanTitle(query) {
+    const q = (query || "").toString();
+    if (/^".*"$/.test(q)) return q.slice(1, -1);
+    return q
+      .replace(/\d+\s*kbps/gi, "")
+      .replace(/\bVBR\b.*$/gi, "")
+      .replace(/superprodukcja/gi, "")
+      .replace(/\s+czyt(?:a|ają|\.)\s+\p{Lu}.*$/u, "") // "... czyta Jan Kowalski"
+      .replace(/^.*\s-\s+(?=\S)/, "") // "Autor - Tytuł": what follows the last spaced dash
+      .replace(/^.*?\b(?:T|Tom)[\s.]?\d{1,3}\b[\s.,:-]*(?=\S)/i, "") // "Seria Tom 2 Tytuł"
+      .replace(/[\s.,:-]*\bTom[\s.]?\d{1,3}\s*$/i, "") // "Tytuł. Tom 2"
+      .replace(/^.*?\(\d{1,3}\)\s*(?=\S)/, "") // "Seria (2) Tytuł"
+      .replace(/\(.*?\)/g, "")
+      .replace(/\[.*?\]/g, "")
+      .replace(/[^\p{L}\d]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /** The author to filter by: the one given, else the part before " - " in an "Autor - Tytuł" query. */
+  static cleanAuthor(query, author) {
+    let a = (author || "").toString();
+    if (!a && /\s-\s/.test(query || "")) a = query.split(/\s-\s/)[0];
+    return a.split(/\s-\s/)[0].replace(/\./g, " ").replace(/\s+/g, " ").trim();
   }
 
   async searchBooks(query, author = "") {
     const cacheKey = `${query}-${author}`;
     const cachedResult = this.cache.get(cacheKey);
-    if (cachedResult) {
-      return cachedResult;
-    }
+    if (cachedResult) return cachedResult;
 
-    try {
-      const currentTime = new Date().toLocaleString("pl-PL", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      });
+    const cleanedAuthor = LubimyCzytacProvider.cleanAuthor(query, author);
+    // A query that is nothing but markers ("Tom 1") is searched as given.
+    const cleanedTitle = LubimyCzytacProvider.cleanTitle(query) || (query || "").toString().trim();
 
-      console.log(`Current time: ${currentTime}`);
-      console.log(`Input details: "${query}" by "${author}"`);
+    let params = `phrase=${encodeURIComponent(cleanedTitle)}`;
+    if (cleanedAuthor) params += `&author=${encodeURIComponent(cleanedAuthor)}`;
 
-      if (!author && query.includes("-")) {
-        author = query.split("-")[0].replace(/\./g, " ").trim();
-      } else {
-        author = author.split("-")[0].replace(/\./g, " ").trim();
-      }
+    const [books, audiobooks] = await Promise.all([
+      this.http.get(`${this.baseUrl}/szukaj/ksiazki?${params}`, { responseType: "text" }),
+      this.http.get(`${this.baseUrl}/szukaj/audiobooki?${params}`, { responseType: "text" }),
+    ]);
 
-      console.log("Extracted author: ", author);
+    // Snippets only: the backbone scores them and fetches detail pages (getFullMetadata) for the few
+    // candidates above its threshold.
+    const matches = [
+      ...this.parseSearchResults(books.data, "book"),
+      ...this.parseSearchResults(audiobooks.data, "audiobook"),
+    ].slice(0, 40);
 
-      let cleanedTitle = query;
-      if (!/^".*"$/.test(cleanedTitle)) {
-        cleanedTitle = cleanedTitle
-          .replace(/(\d+kbps)/g, "")
-          .replace(/\bVBR\b.*$/gi, "")
-          .replace(/^[\w\s.-]+-\s*/g, "")
-          .replace(/czyt.*/gi, "")
-          .replace(/.*-/, "")
-          .replace(/.*?(T[\s.]?\d{1,3}).*?(.*)$/i, "$2")
-          .replace(/.*?(Tom[\s.]?\d{1,3}).*?(.*)$/i, "$2")
-          .replace(/.*?\(\d{1,3}\)\s*/g, "")
-          .replace(/\(.*?\)/g, "")
-          .replace(/\[.*?\]/g, "")
-          .replace(/\(/g, " ")
-          .replace(/[^\p{L}\d]/gu, " ")
-          .replace(/\./g, " ")
-          .replace(/\s+/g, " ")
-          .replace(/superprodukcja/i, "")
-          .trim();
-      } else {
-        cleanedTitle = cleanedTitle.replace(/^"(.*)"$/, "$1");
-      }
-
-      console.log("Extracted title: ", cleanedTitle);
-
-      let booksSearchUrl = `${this.baseUrl}/szukaj/ksiazki?phrase=${encodeURIComponent(cleanedTitle)}`;
-      let audiobooksSearchUrl = `${this.baseUrl}/szukaj/audiobooki?phrase=${encodeURIComponent(cleanedTitle)}`;
-      if (author) {
-        booksSearchUrl += `&author=${encodeURIComponent(author)}`;
-        audiobooksSearchUrl += `&author=${encodeURIComponent(author)}`;
-      }
-
-      console.log("Books Search URL:", booksSearchUrl);
-      console.log("Audiobooks Search URL:", audiobooksSearchUrl);
-
-      const booksResponse = await axios.get(booksSearchUrl, {
-        responseType: "arraybuffer",
-      });
-      const audiobooksResponse = await axios.get(audiobooksSearchUrl, {
-        responseType: "arraybuffer",
-      });
-
-      const booksMatches = this.parseSearchResults(booksResponse.data, "book");
-      const audiobooksMatches = this.parseSearchResults(
-        audiobooksResponse.data,
-        "audiobook",
-      );
-
-      let allMatches = [...booksMatches, ...audiobooksMatches];
-
-      allMatches = allMatches
-        .map((match) => {
-          const titleSimilarity = stringSimilarity.compareTwoStrings(
-            match.title.toLowerCase(),
-            cleanedTitle.toLowerCase(),
-          );
-
-          let combinedSimilarity;
-          if (author) {
-            const authorSimilarity = Math.max(
-              ...match.authors.map((a) =>
-                stringSimilarity.compareTwoStrings(
-                  a.toLowerCase(),
-                  author.toLowerCase(),
-                ),
-              ),
-            );
-            combinedSimilarity = titleSimilarity * 0.6 + authorSimilarity * 0.4;
-          } else {
-            combinedSimilarity = titleSimilarity;
-          }
-
-          return { ...match, similarity: combinedSimilarity };
-        })
-        .sort((a, b) => {
-          if (b.similarity !== a.similarity) return b.similarity - a.similarity;
-          const typeValueA = a.type === "audiobook" ? 1 : 0;
-          const typeValueB = b.type === "audiobook" ? 1 : 0;
-          return typeValueB - typeValueA;
-        })
-        .slice(0, 20);
-
-      // Snippets only: the backbone scores them and fetches detail pages (getFullMetadata) for the few
-      // candidates above its threshold, instead of 20 detail pages per search here.
-      const adjustedMetadata = allMatches;
-
-      const result = { matches: adjustedMetadata };
-      this.cache.set(cacheKey, result);
-      return result;
-    } catch (error) {
-      console.error("Error searching books:", error.message, error.stack);
-      return { matches: [] };
-    }
+    const result = { matches };
+    this.cache.set(cacheKey, result);
+    return result;
   }
 
   parseSearchResults(responseData, type) {
-    const decodedData = this.decodeText(responseData);
-    const $ = cheerio.load(decodedData);
+    const $ = cheerio.load(Buffer.isBuffer(responseData) ? responseData.toString("utf8") : String(responseData));
     const matches = [];
 
     $(".book-card--l").each((index, element) => {
       const $book = $(element);
 
-      // Skip promoted offers / reklam
-      if (
-        $book.closest(".promoted-offers__list, .promoted-offers").length > 0
-      ) {
-        return;
-      }
+      // Skip promoted offers
+      if ($book.closest(".promoted-offers__list, .promoted-offers").length > 0) return;
 
-      const title = $book.find(".book-card__title").text().trim();
-      const bookUrl = $book.find(".book-card__title").attr("href");
+      const title = text($book.find(".book-card__title").first().text());
+      const bookUrl = $book.find(".book-card__title").first().attr("href");
       const authors = $book
         .find(".book-card__author a")
-        .map((i, el) => $(el).text().trim())
-        .get();
+        .map((i, el) => text($(el).text()))
+        .get()
+        .filter(Boolean);
 
-      const bookId =
-        $book.attr("data-book-id") ||
-        (bookUrl ? bookUrl.split("/").filter(Boolean)[1] : null);
+      if (!title || !bookUrl) return;
+      const url = bookUrl.startsWith("http") ? bookUrl : `${this.baseUrl}${bookUrl}`;
+      const idFromUrl = url.match(/\/(?:ksiazka|audiobook|ebook)\/(\d+)/);
 
-      if (title && bookUrl) {
-        matches.push({
-          id: bookId,
-          title: this.decodeUnicode(title),
-          authors: authors.map((author) => this.decodeUnicode(author)),
-          url: bookUrl.startsWith("http")
-            ? bookUrl
-            : `${this.baseUrl}${bookUrl}`,
-          type: type,
-          source: {
-            id: this.id,
-            description: this.name,
-            link: this.baseUrl,
-          },
-        });
-      }
+      matches.push({
+        id: $book.attr("data-book-id") || (idFromUrl ? idFromUrl[1] : null),
+        title: this.decodeUnicode(title),
+        authors: authors.map((a) => this.decodeUnicode(a)),
+        url,
+        type,
+        source: { id: this.id, description: this.name, link: this.baseUrl },
+      });
     });
 
     return matches;
@@ -193,292 +132,160 @@ class LubimyCzytacProvider {
 
   async getFullMetadata(match) {
     try {
-      const response = await axios.get(match.url, {
-        responseType: "arraybuffer",
-      });
-      const decodedData = this.decodeText(response.data);
-      const $ = cheerio.load(decodedData);
-
-      const cover =
-        $("a#js-lightboxCover").attr("href") ||
-        $(".book-cover__link").attr("href") ||
-        $('meta[property="og:image"]').attr("content") ||
-        "";
-
-      const publisher =
-        $('span.book__txt:contains("Wydawnictwo:")').find("a").text().trim() ||
-        $("[data-ga-book-publishers]").attr("data-ga-book-publishers") ||
-        "";
-
-      const languages =
-        $('dt:contains("Język:")').next("dd").text().trim().split(", ") || [];
-      const description =
-        $("#book-description").html() ||
-        $('meta[property="og:description"]').attr("content") ||
-        "";
-      const seriesElement = $('span.d-none.d-sm-block.mt-1:contains("Cykl:")')
-        .find("a")
-        .text()
-        .trim();
-      const series = this.extractSeriesName(seriesElement);
-      const seriesIndex = this.extractSeriesIndex(seriesElement);
-      const genres = this.extractGenres($);
-      const tags = this.extractTags($);
-      const rating =
-        parseFloat($('meta[property="books:rating:value"]').attr("content")) /
-          2 || null;
-      const isbn = $('meta[property="books:isbn"]').attr("content") || "";
-
-      let publishedDate, pages;
-      try {
-        publishedDate = this.extractPublishedDate($);
-        pages = this.extractPages($);
-      } catch (error) {
-        console.error(
-          "Error extracting published date or pages:",
-          error.message,
-        );
-      }
-
-      const translator = this.extractTranslator($);
-      // Try to extract narrator/lector info (Polish pages use 'Czyta' or similar)
-      let narrator = "";
-      try {
-        narrator = $('dt:contains("Czyta")').next("dd").text().trim() || "";
-        if (!narrator) {
-          // look for product-detail-item label patterns
-          const narrDiv = $(".product-detail-item")
-            .filter(function () {
-              const lbl = $(this).find(".label").text().trim();
-              return /Czyta|Czytają|Czytał|Czytała/i.test(lbl);
-            })
-            .find(".value");
-          if (narrDiv && narrDiv.length) {
-            narrator = narrDiv.text().trim();
-          }
-        }
-      } catch (err) {
-        narrator = "";
-      }
-
-      const fullMetadata = {
-        ...match,
-        cover,
-        description: this.enrichDescription(
-          description,
-          pages,
-          publishedDate,
-          translator,
-        ),
-        narrator: narrator || undefined,
-        languages: languages.map((lang) => this.getLanguageName(lang)),
-        publisher: publisher || undefined,
-        publishedDate,
-        rating,
-        series,
-        seriesIndex,
-        genres,
-        tags,
-        identifiers: {
-          isbn,
-          lubimyczytac: match.id,
-        },
-      };
-
-      // Try to extract additional metadata from JSON-LD scripts when some fields are missing
-      try {
-        const scripts = $('script[type="application/ld+json"]');
-        for (let i = 0; i < scripts.length; i++) {
-          const txt = $(scripts[i]).text();
-          if (!txt) continue;
-          try {
-            const data = JSON.parse(txt);
-            const candidates = [];
-            if (Array.isArray(data)) candidates.push(...data);
-            else candidates.push(data);
-            for (const node of candidates) {
-              if (!fullMetadata.subtitle) {
-                const sub =
-                  node.alternativeHeadline ||
-                  node.headline ||
-                  node.subtitle ||
-                  node.alternateName;
-                if (sub && typeof sub === "string" && sub.trim())
-                  fullMetadata.subtitle = sub.trim();
-              }
-              if (!fullMetadata.publisher) {
-                if (node.publisher) {
-                  if (typeof node.publisher === "string")
-                    fullMetadata.publisher = node.publisher;
-                  else if (node.publisher.name)
-                    fullMetadata.publisher = node.publisher.name;
-                }
-              }
-            }
-          } catch (err) {
-            // ignore JSON parse errors
-            continue;
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-
-      return fullMetadata;
+      // Only pages of the site itself: the address comes from a scraped search result.
+      const host = new URL(match.url).hostname;
+      if (host !== "lubimyczytac.pl" && !host.endsWith(".lubimyczytac.pl")) return match;
+      const response = await this.http.get(match.url, { responseType: "text" });
+      return this.parseDetail(response.data, match);
     } catch (error) {
-      console.error(
-        `Error fetching full metadata for ${match.title}:`,
-        error.message,
-        error.stack,
-      );
+      console.error(`LubimyCzytać: detail page failed for "${match.title}": ${error.message}`);
       return match;
     }
   }
 
+  parseDetail(html, match) {
+    const $ = cheerio.load(Buffer.isBuffer(html) ? html.toString("utf8") : String(html));
+    const ld = jsonLdNodes($);
+    const book = ld.find((n) => /Book/i.test([].concat(n["@type"] || []).join(" "))) || {};
+    // The details list: <dt>Label:</dt><dd>value</dd>
+    const dd = (label) => {
+      const dt = $("dt").filter((i, el) => text($(el).text()).startsWith(label)).first();
+      return dt.length ? dt.next("dd") : $();
+    };
+
+    const cover =
+      $("a#js-lightboxCover").attr("href") ||
+      $(".book-cover__link").attr("href") ||
+      (typeof book.image === "string" ? book.image : "") ||
+      "";
+
+    const publisher =
+      text($('span.book__txt:contains("Wydawnictwo:")').find("a").first().text()) ||
+      $("[data-ga-book-publishers]").attr("data-ga-book-publishers") ||
+      (book.publisher && (book.publisher.name || (typeof book.publisher === "string" ? book.publisher : ""))) ||
+      "";
+
+    const languages = text(dd("Język").text())
+      .split(",")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => this.getLanguageName(l));
+
+    const description = $("#book-description").html() || "";
+
+    const cycle =
+      text($('span.d-none.d-sm-block.mt-1:contains("Cykl:")').find("a").first().text()) ||
+      text(dd("Cykl").find("a").first().text() || dd("Cykl").text());
+    const series = this.extractSeriesName(cycle);
+    const seriesIndex = this.extractSeriesIndex(cycle);
+
+    const ratingValue = parseFloat(
+      ($('meta[property="books:rating:value"]').attr("content") || text($(".rating-value .big-number").first().text())).replace(",", "."),
+    );
+    const rating = Number.isFinite(ratingValue) ? ratingValue / 2 : null; // the site rates out of 10
+
+    const isbn =
+      $('meta[property="books:isbn"]').attr("content") ||
+      text(dd("ISBN").text()) ||
+      (typeof book.isbn === "string" ? book.isbn : "") ||
+      "";
+
+    const publishedDate = this.extractPublishedDate($, dd);
+    const pages = this.extractPages($, ld);
+    const translator = text(dd("Tłumacz").find("a").map((i, el) => text($(el).text())).get().join(", ")) || null;
+    const narrator = text(dd("Lektor").text()) || text(dd("Czyta").text());
+
+    const fullMetadata = {
+      ...match,
+      cover,
+      description: this.enrichDescription(description, pages, publishedDate, translator),
+      narrator: narrator || undefined,
+      languages,
+      publisher: publisher || undefined,
+      publishedDate: publishedDate || undefined,
+      rating,
+      series,
+      seriesIndex,
+      genres: this.extractGenres($, dd),
+      tags: this.extractTags($),
+      identifiers: {
+        isbn,
+        lubimyczytac: match.id,
+      },
+    };
+
+    const subtitle = book.alternativeHeadline || book.subtitle;
+    if (typeof subtitle === "string" && subtitle.trim()) fullMetadata.subtitle = subtitle.trim();
+
+    return fullMetadata;
+  }
+
   extractSeriesName(seriesElement) {
     if (!seriesElement) return null;
-    return seriesElement.replace(/\s*\(tom \d+.*?\)\s*$/, "").trim();
+    return seriesElement.replace(/\s*\(tom [^)]*\)\s*$/i, "").trim() || null;
   }
 
+  /** Volume number as the site shows it: 1, or "2.5" / "1-2" as a string. */
   extractSeriesIndex(seriesElement) {
     if (!seriesElement) return null;
-    const match = seriesElement.match(/\(tom (\d+)/);
-    return match ? parseInt(match[1]) : null;
+    const found = seriesElement.match(/\(tom ([\d.,-]+)\)/i);
+    if (!found) return null;
+    const value = found[1].replace(",", ".");
+    return /^\d+$/.test(value) ? parseInt(value, 10) : value;
   }
 
-  extractPublishedDate($) {
-    const dateText = $('dt[title*="Data pierwszego wydania"]')
-      .next("dd")
-      .text()
-      .trim();
-    return dateText ? new Date(dateText) : null;
+  /** First edition date as `YYYY-MM-DD` (or whatever the site shows), falling back to this edition's date. */
+  extractPublishedDate($, dd) {
+    const first = text($('dt[title*="Data pierwszego wydania"]').first().next("dd").text());
+    const value = first || text(dd("Data wydania").text());
+    const iso = value.match(/\d{4}(?:-\d{2}(?:-\d{2})?)?/);
+    return iso ? iso[0] : null;
   }
 
-  extractPages($) {
-    try {
-      // There might be multiple script tags with application/ld+json
-      const scripts = $('script[type="application/ld+json"]');
-
-      for (let i = 0; i < scripts.length; i++) {
-        const scriptText = $(scripts[i]).html() || $(scripts[i]).text() || "";
-        if (!scriptText.trim()) continue;
-
-        try {
-          // Try to extract just the JSON part if there's extra content
-          let jsonText = scriptText.trim();
-
-          // Find the first { or [ and try to parse from there
-          const jsonStart = Math.min(
-            jsonText.indexOf("{") >= 0 ? jsonText.indexOf("{") : Infinity,
-            jsonText.indexOf("[") >= 0 ? jsonText.indexOf("[") : Infinity,
-          );
-
-          if (jsonStart !== Infinity && jsonStart > 0) {
-            jsonText = jsonText.substring(jsonStart);
-          }
-
-          // Try to find where valid JSON ends by parsing progressively
-          let data = null;
-
-          // First, try parsing the whole thing
-          try {
-            data = JSON.parse(jsonText);
-          } catch (e) {
-            // If that fails, try to find the end of valid JSON
-            // by removing characters from the end until it parses
-            for (let len = jsonText.length - 1; len > 0; len--) {
-              try {
-                const substring = jsonText.substring(0, len);
-                // Check if we have balanced braces/brackets
-                const openBraces = (substring.match(/{/g) || []).length;
-                const closeBraces = (substring.match(/}/g) || []).length;
-                const openBrackets = (substring.match(/\[/g) || []).length;
-                const closeBrackets = (substring.match(/\]/g) || []).length;
-
-                if (
-                  openBraces === closeBraces &&
-                  openBrackets === closeBrackets
-                ) {
-                  data = JSON.parse(substring.trim());
-                  break;
-                }
-              } catch (innerError) {
-                // Continue trying shorter strings
-                continue;
-              }
-            }
-          }
-
-          if (data) {
-            if (data.numberOfPages) return data.numberOfPages;
-            if (data["@graph"]) {
-              for (const node of data["@graph"]) {
-                if (node.numberOfPages) return node.numberOfPages;
-              }
-            }
-          }
-        } catch (innerError) {
-          // Try next script tag
-          continue;
-        }
-      }
-
-      // fallback: try to extract via regex from the page body
-      const bodyText = $.root().text();
-      const match = bodyText.match(/(\d{1,4})\s+stron/i);
-      if (match) return parseInt(match[1], 10);
-    } catch (error) {
-      console.error("Error parsing JSON for pages:", error.message);
+  extractPages($, ld) {
+    for (const node of ld) {
+      const pages = parseInt(node.numberOfPages, 10);
+      if (pages > 0) return pages;
     }
-    return null;
+    const found = text(dd$($, "Liczba stron")).match(/\d+/);
+    return found ? parseInt(found[0], 10) : null;
   }
 
-  extractTranslator($) {
-    return (
-      $('dt:contains("Tłumacz:")').next("dd").find("a").text().trim() || null
-    );
-  }
-
-  extractGenres($) {
-    const genreText = $(".book__category.d-sm-block.d-none").text().trim();
-    return genreText ? genreText.split(",").map((genre) => genre.trim()) : [];
+  extractGenres($, dd) {
+    const genreText = text($(".book__category.d-sm-block.d-none").first().text()) || text(dd("Kategoria").text());
+    return genreText ? genreText.split(",").map((genre) => genre.trim()).filter(Boolean) : [];
   }
 
   extractTags($) {
-    return (
-      $('a[href*="/ksiazki/t/"]')
-        .map((i, el) => $(el).text().trim())
-        .get() || []
-    );
+    return [...new Set($('a[href*="/ksiazki/t/"]').map((i, el) => text($(el).text())).get().filter(Boolean))];
   }
 
   stripHtmlTags(html) {
-    // Remove HTML tags
-    let text = html.replace(/<[^>]*>/g, "");
+    // Paragraph and line breaks become line breaks, the remaining tags go.
+    let out = html
+      .replace(/<\s*br\s*\/?>/gi, "\n")
+      .replace(/<\/p\s*>/gi, "\n\n")
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#0?39;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
     // Fix missing spaces after periods followed by capital letters
-    text = text.replace(/\.([A-ZĄĆĘŁŃÓŚŹŻ])/g, ". $1");
-    return text;
+    out = out.replace(/\.([A-ZĄĆĘŁŃÓŚŹŻ])/g, ". $1");
+    return out.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   }
 
   enrichDescription(description, pages, publishedDate, translator) {
     let enrichedDescription = this.stripHtmlTags(description);
 
-    if (enrichedDescription === "Ta książka nie posiada jeszcze opisu.") {
-      enrichedDescription = "Brak opisu.";
-    } else {
-      if (pages) {
-        enrichedDescription += `\n\nKsiążka ma ${pages} stron.`;
-      }
-
-      if (publishedDate) {
-        enrichedDescription += `\n\nData pierwszego wydania: ${publishedDate.toLocaleDateString()}`;
-      }
-
-      if (translator) {
-        enrichedDescription += `\n\nTłumacz: ${translator}`;
-      }
+    if (!enrichedDescription || enrichedDescription === "Ta książka nie posiada jeszcze opisu.") {
+      return "Brak opisu.";
     }
-
+    if (pages) enrichedDescription += `\n\nKsiążka ma ${pages} stron.`;
+    if (publishedDate) enrichedDescription += `\n\nData pierwszego wydania: ${publishedDate}`;
+    if (translator) enrichedDescription += `\n\nTłumacz: ${translator}`;
     return enrichedDescription;
   }
 
@@ -495,6 +302,12 @@ class LubimyCzytacProvider {
       String.fromCharCode(parseInt(hex, 16)),
     );
   }
+}
+
+/** Text of the <dd> after the <dt> starting with `label`. */
+function dd$($, label) {
+  const dt = $("dt").filter((i, el) => text($(el).text()).startsWith(label)).first();
+  return dt.length ? dt.next("dd").text() : "";
 }
 
 module.exports = LubimyCzytacProvider;

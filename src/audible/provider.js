@@ -1,5 +1,5 @@
-const axios = require('axios');
 const NodeCache = require('node-cache');
+const { createHttp } = require('../lib/http');
 
 const cache = new NodeCache({ stdTTL: 600 });
 
@@ -31,6 +31,7 @@ class AudibleProvider {
     this.domain = DOMAINS[this.region];
     this.timeoutMs = this.opts.timeoutMs || 10000;
     this.maxResults = 10;
+    this.http = this.opts.http || createHttp({ timeoutMs: this.timeoutMs, headers: { Accept: 'application/json' } });
   }
 
   async searchBooks(query, author = '') {
@@ -38,33 +39,24 @@ class AudibleProvider {
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    try {
-      const params = {
-        num_results: String(this.maxResults),
-        products_sort_by: 'Relevance',
-        response_groups: 'contributors,media,product_desc,product_attrs,series',
-      };
-      // Title and author apart when the caller gives the author, else free keywords.
-      if (author) {
-        params.title = query;
-        params.author = author;
-      } else {
-        params.keywords = query;
-      }
-      const response = await axios.get(`https://api.audible.${this.domain}/1.0/catalog/products`, {
-        params,
-        timeout: this.timeoutMs,
-        headers: { Accept: 'application/json' },
-      });
-      const products = (response.data && response.data.products) || [];
-      const matches = products.map(p => this.format(p)).filter(Boolean);
-      const result = { matches };
-      cache.set(cacheKey, result);
-      return result;
-    } catch (error) {
-      console.error('Audible search failed:', error && error.message ? error.message : error);
-      return { matches: [] };
+    const params = {
+      num_results: String(this.maxResults),
+      products_sort_by: 'Relevance',
+      response_groups: 'contributors,media,product_desc,product_attrs,series',
+    };
+    // Title and author apart when the caller gives the author, else free keywords.
+    if (author) {
+      params.title = query;
+      params.author = author;
+    } else {
+      params.keywords = query;
     }
+    const response = await this.http.get(`https://api.audible.${this.domain}/1.0/catalog/products`, { params });
+    const products = (response.data && response.data.products) || [];
+    const matches = products.map(p => this.format(p)).filter(Boolean);
+    const result = { matches };
+    cache.set(cacheKey, result);
+    return result;
   }
 
   format(product) {

@@ -1,43 +1,38 @@
-const axios = require('axios');
 const cheerio = require('cheerio');
+const NodeCache = require('node-cache');
+const { createHttp } = require('../lib/http');
+
+const text = (s) => (s || '').replace(/\s+/g, ' ').trim();
+const unique = (list) => [...new Set(list.filter(Boolean))];
 
 function cleanCoverUrl(url) {
-  if (url) {
-    return url.split('?')[0];
-  }
-  return url;
+  return url ? url.split('?')[0] : url;
 }
 
+/** "6 godzin 28 minut", "45 minut", "12 hodin 3 minuty" -> minutes. */
 function parseDuration(durationStr) {
-  if (!durationStr) return undefined;
-
-  let hours = 0;
-  let minutes = 0;
-
-  const durationRegex = /^(?:(\d+)\s+[^\d\s]+)?\s*(?:(\d+)\s+[^\d\s]+)$/;
-  const matches = durationStr.match(durationRegex);
-
-  if (matches) {
-    if (matches[1]) {
-      hours = parseInt(matches[1], 10);
-    }
-    if (matches[2]) {
-      minutes = parseInt(matches[2], 10);
-    }
-  } else {
-    if (durationStr.trim()) {
-      console.warn(`Could not parse duration string using provided regex: "${durationStr}"`);
-    }
-    return undefined;
-  }
-
-  if (isNaN(hours)) hours = 0;
-  if (isNaN(minutes)) minutes = 0;
-
-  return (hours * 60) + minutes;
+  const s = text(durationStr);
+  if (!s) return undefined;
+  const found = s.match(/^(?:(\d+)\s+[^\d\s]+)?\s*(?:(\d+)\s+[^\d\s]+)$/);
+  if (!found) return undefined;
+  // One number alone is hours when the unit says so ("6 godzin", "6 hodin"), minutes otherwise.
+  if (!found[1] && /\d+\s+(?:godz|hod)/i.test(s)) return parseInt(found[2], 10) * 60;
+  return (parseInt(found[1] || '0', 10) * 60) + parseInt(found[2] || '0', 10);
 }
 
-const DEFAULT_METADATA_CONCURRENCY = 5;
+/** ISO 8601 duration from JSON-LD ("PT6H28M") -> minutes. */
+function parseIsoDuration(value) {
+  const found = typeof value === 'string' && value.match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!found) return undefined;
+  const minutes = (parseInt(found[1] || '0', 10) * 1440) + (parseInt(found[2] || '0', 10) * 60) + parseInt(found[3] || '0', 10);
+  return minutes || undefined;
+}
+
+// Labels of the details list (<dt>) per store.
+const LABELS = {
+  pl: { narrator: ['Głosy', 'Czyta'], duration: ['Długość'], publisher: ['Wydawca'], type: ['Typ'], genres: ['Kategoria'], language: ['Język'] },
+  cz: { narrator: ['Interpret', 'Čte', 'Hlasy'], duration: ['Délka', 'Stopáž'], publisher: ['Vydavatel', 'Nakladatel'], type: ['Typ'], genres: ['Kategorie', 'Žánr'], language: ['Jazyk'] },
+};
 
 class AudiotekaProvider {
   constructor(options = {}) {
@@ -52,404 +47,179 @@ class AudiotekaProvider {
     } else {
       this.addAudiotekaLinkToDescription = ((process.env.ADD_AUDIOTEKA_LINK_TO_DESCRIPTION || 'true').toLowerCase() === 'true');
     }
-    this.metadataConcurrency = (this.opts.concurrency && Number.isFinite(this.opts.concurrency)) ? this.opts.concurrency : (() => {
-      const v = parseInt(process.env.METADATA_CONCURRENCY, 10);
-      return Number.isFinite(v) && v > 0 ? v : DEFAULT_METADATA_CONCURRENCY;
-    })();
-    this.searchUrl = this.language === 'cz' ? 'https://audioteka.com/cz/vyhledavani' : 'https://audioteka.com/pl/szukaj';
-  }
-
-  async searchBooks(query, author = '', requestId = 'req') {
-    try {
-      console.log(`[${requestId}] Searching for: "${query}" by "${author}"`);
-      const searchUrl = `${this.searchUrl}?phrase=${encodeURIComponent(query)}`;
-
-      const response = await axios.get(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept-Language': this.language === 'cz' ? 'cs-CZ' : 'pl-PL'
-        }
-      });
-      const $ = cheerio.load(response.data);
-
-      const matches = [];
-      // CSS-module class names carry a build hash (teaser_title__hDeCG): match their stable prefix.
-      const $books = $('[class*="teaser_teaser__"]');
-
-      $books.each((index, element) => {
-        const $book = $(element);
-
-        const title = $book.find('[class*="teaser_title__"]').text().trim();
-        const bookUrl = this.baseUrl + $book.find('[class*="teaser_link__"]').attr('href');
-        const authors = [$book.find('[class*="teaser_author__"]').text().trim()];
-  // try common lazy-load attributes and fallbacks for cover
-  // Try several selectors and lazy-load attributes for teaser cover; normalize and clean URL
-  const teaserEl = $book.find('[class*="teaser_coverImage__"], img.teaser-image, img');
-  let coverSrc = teaserEl.attr('src') || teaserEl.attr('data-src') || teaserEl.attr('data-srcset') || teaserEl.attr('srcset') || teaserEl.find('source').attr('srcset');
-  if (coverSrc && typeof coverSrc === 'string' && coverSrc.includes(',')) {
-    coverSrc = coverSrc.split(',')[0].trim().split(' ')[0];
-  }
-  const cover = cleanCoverUrl(coverSrc || null) || null;
-        const rating = parseFloat($book.find('[class*="teaser-footer_rating__"]').text().trim()) || null;
-
-        const id = $book.attr('data-item-id') || bookUrl.split('/').pop();
-
-        if (title && bookUrl && authors.length > 0) {
-          matches.push({
-            id,
-            title,
-            authors,
-            url: bookUrl,
-            cover,
-            rating,
-            type: 'audiobook', // explicit: Audioteka provides audiobooks
-            source: {
-              id: this.id,
-              description: this.name,
-              link: this.baseUrl,
-            },
-          });
-        }
-      });
-
-  // Return lightweight snippets here. Backbone will call getFullMetadata for selected candidates.
-  return { matches };
-    } catch (error) {
-      console.error(`[${requestId}] Error searching books:`, error.message, error.stack);
-      return { matches: [] };
-    }
-  }
-
-  async mapWithConcurrency(items, iteratorFn, limit = 5) {
-    const results = new Array(items.length);
-    let i = 0;
-    const workers = Array(Math.min(limit, items.length)).fill().map(async () => {
-      while (true) {
-        const idx = i++;
-        if (idx >= items.length) return;
-        try {
-          results[idx] = await iteratorFn(items[idx]);
-        } catch (err) {
-          console.error('Error in mapWithConcurrency item:', err && err.message || err);
-          results[idx] = null;
-        }
-      }
+    this.timeoutMs = this.opts.timeoutMs || 10000;
+    this.http = this.opts.http || createHttp({
+      timeoutMs: this.timeoutMs,
+      headers: { 'Accept-Language': this.language === 'cz' ? 'cs-CZ,cs;q=0.9' : 'pl-PL,pl;q=0.9' },
     });
-    await Promise.all(workers);
-    return results;
+    this.searchUrl = this.language === 'cz' ? 'https://audioteka.com/cz/vyhledavani/' : 'https://audioteka.com/pl/szukaj/';
+    this.cache = new NodeCache({ stdTTL: 600 });
+  }
+
+  async searchBooks(query) {
+    const cacheKey = `${this.language}|${query}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached) return cached;
+
+    const response = await this.http.get(`${this.searchUrl}?phrase=${encodeURIComponent(query)}`, { responseType: 'text' });
+    // Lightweight snippets. Backbone will call getFullMetadata for selected candidates.
+    const result = { matches: this.parseSearchResults(response.data) };
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  parseSearchResults(html) {
+    const $ = cheerio.load(String(html));
+    const matches = [];
+    const seen = new Set();
+
+    // CSS-module class names carry a build hash (teaser_title__hDeCG): match their stable prefix.
+    $('[class*="teaser_teaser__"]').each((index, element) => {
+      const $book = $(element);
+
+      const title = text($book.find('[class*="teaser_title__"]').first().text());
+      const href = $book.find('[class*="teaser_link__"]').first().attr('href') || $book.find('a[href*="/audiobook/"]').first().attr('href');
+      if (!title || !href) return;
+      const bookUrl = href.startsWith('http') ? href : this.baseUrl + href;
+      if (seen.has(bookUrl)) return;
+      seen.add(bookUrl);
+
+      const authors = text($book.find('[class*="teaser_author__"]').first().text()).split(/\s*,\s*/).filter(Boolean);
+
+      // try common lazy-load attributes and fallbacks for cover
+      const teaserEl = $book.find('[class*="teaser_coverImage__"], img').first();
+      let coverSrc = teaserEl.attr('src') || teaserEl.attr('data-src') || teaserEl.attr('data-srcset') || teaserEl.attr('srcset');
+      if (coverSrc && coverSrc.includes(',')) coverSrc = coverSrc.split(',')[0].trim().split(' ')[0];
+      // Lazily loaded teasers keep the image in <noscript>, which is plain text to the parser.
+      if (!coverSrc || !/^https?:/.test(coverSrc)) {
+        const lazy = ($book.find('noscript').first().text() || '').match(/src="([^"]+)"/);
+        if (lazy) coverSrc = lazy[1].replace(/&amp;/g, '&');
+      }
+      const cover = coverSrc && /^https?:/.test(coverSrc) ? cleanCoverUrl(coverSrc) : null;
+      const rating = parseFloat(text($book.find('[class*="teaser-footer_rating__"]').first().text()).replace(',', '.')) || null;
+
+      // The address ends in the product's slug: /pl/audiobook/krew-elfow-tom-1/
+      const id = $book.attr('data-item-id') || bookUrl.split('/').filter(Boolean).pop();
+
+      matches.push({
+        id,
+        title,
+        authors,
+        url: bookUrl,
+        cover,
+        rating,
+        type: 'audiobook', // explicit: Audioteka provides audiobooks
+        source: { id: this.id, description: this.name, link: this.baseUrl },
+      });
+    });
+
+    return matches;
   }
 
   async getFullMetadata(match) {
     try {
-      let requestId = 'req';
-      if (arguments.length >= 2 && arguments[1]) requestId = arguments[1];
-      console.log(`[${requestId}] Fetching full metadata for: ${match.title}`);
-      const response = await axios.get(match.url);
-      const $ = cheerio.load(response.data);
-
-    let narrators = '';
-    if (this.language === 'cz') {
-        let narratorCell = $('table tr').filter(function() {
-          const text = $(this).find('td:first-child').text().trim();
-          return text === 'Interpret' || text === 'Čte';
-        }).find('td:last-child');
-
-        const narratorLinks = narratorCell.find('a');
-        if (narratorLinks.length > 0) {
-          narrators = narratorLinks.map((i, el) => $(el).text().trim()).get().join(', ');
-        } else {
-          narrators = narratorCell.text().trim();
-        }
-
-        if (!narrators) {
-          $('dt').each((i, el) => {
-            const text = $(el).text().trim();
-            if (text === 'Interpret' || text === 'Čte') {
-              const ddElement = $(el).next('dd');
-              const ddLinks = ddElement.find('a');
-              if (ddLinks.length > 0) {
-                narrators = ddLinks.map((i, el) => $(el).text().trim()).get().join(', ');
-              } else {
-                narrators = ddElement.text().trim();
-              }
-            }
-          });
-        }
-
-        if (!narrators) {
-          const narratorDiv = $('.product-detail-item').filter(function() {
-            return $(this).find('.label').text().trim() === 'Interpret' || 
-                   $(this).find('.label').text().trim() === 'Čte';
-          }).find('.value');
-
-          const divLinks = narratorDiv.find('a');
-          if (divLinks.length > 0) {
-            narrators = divLinks.map((i, el) => $(el).text().trim()).get().join(', ');
-          } else {
-            narrators = narratorDiv.text().trim();
-          }
-        }
-
-        if (narrators && !narrators.includes(',') && narrators.match(/[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][a-záčďéěíňóřšťúůýž]+[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]/)) {
-          narrators = narrators.replace(/([a-záčďéěíňóřšťúůýž])([A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])/g, '$1, $2');
-        }
-      } else {
-        let narratorCell = $('dt').filter(function() {
-          return $(this).text().trim() === 'Głosy';
-        }).next('dd');
-
-        const narratorLinks = narratorCell.find('a');
-        if (narratorLinks.length > 0) {
-          narrators = narratorLinks.map((i, el) => $(el).text().trim()).get().join(', ');
-        } else {
-          narrators = narratorCell.text().trim();
-        }
-
-        if (!narrators) {
-          narrators = $('.product-table tr:contains("Głosy") td:last-child a')
-            .map((i, el) => $(el).text().trim())
-            .get()
-            .join(', ') || $('.product-table tr:contains("Głosy") td:last-child').text().trim();
-        }
-
-        if (narrators && !narrators.includes(',') && narrators.match(/[A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+[A-ZĄĆĘŁŃÓŚŹŻ]/)) {
-          narrators = narrators.replace(/([a-ząćęłńóśźż])([A-ZĄĆĘŁŃÓŚŹŻ])/g, '$1, $2');
-        }
-      }
-
-  let durationStr = '';
-  if (this.language === 'cz') {
-        durationStr = $('table tr').filter(function() {
-          const text = $(this).find('td:first-child').text().trim();
-          return text === 'Délka' || text === 'Stopáž';
-        }).find('td:last-child').text().trim();
-
-        if (!durationStr) {
-          $('dt').each((i, el) => {
-            const text = $(el).text().trim();
-            if (text === 'Délka' || text === 'Stopáž') {
-              durationStr = $(el).next('dd').text().trim();
-            }
-          });
-        }
-
-        if (!durationStr) {
-          durationStr = $('.product-detail-item').filter(function() {
-            return $(this).find('.label').text().trim() === 'Délka' || 
-                   $(this).find('.label').text().trim() === 'Stopáž';
-          }).find('.value').text().trim();
-        }
-      } else {
-        durationStr = $('.product-table tr:contains("Długość") td:last-child').text().trim();
-      }
-
-      const durationInMinutes = parseDuration(durationStr);
-
-  let publisher = '';
-  try {
-    if (this.language === 'cz') {
-        publisher = $('table tr').filter(function() {
-          const text = $(this).find('td:first-child').text().trim();
-          return text === 'Vydavatel' || text === 'Nakladatel';
-        }).find('td:last-child').text().trim();
-
-        if (!publisher) {
-          $('dt').each((i, el) => {
-            const text = $(el).text().trim();
-            if (text === 'Vydavatel' || text === 'Nakladatel') {
-              publisher = $(el).next('dd').text().trim();
-            }
-          });
-        }
-
-        if (!publisher) {
-          publisher = $('.product-detail-item').filter(function() {
-            return $(this).find('.label').text().trim() === 'Vydavatel' || 
-                   $(this).find('.label').text().trim() === 'Nakladatel';
-          }).find('.value').text().trim();
-        }
-      } else {
-        // Prefer explicit publisher anchor (e.g., /pl/wydawca/ or /pl/wydawca)
-        publisher = $('.product-table tr:contains("Wydawca") td:last-child a').text().trim() ||
-                    $('.product-table tr:contains("Wydawca") td:last-child').text().trim();
-        // Some Audioteka pages show publisher as tag links without dt table
-  if (!publisher) publisher = $('a[href*="/pl/wydawca/"]').first().text().trim() || $('a[href*="/wydawca/"]').first().text().trim() || '';
-  if (!publisher) publisher = $('a[href*="/cz/vydavatel/"]').first().text().trim() || '';
-      }
-  } catch (e) {
-    publisher = '';
-  }
-
-  let type = '';
-  if (this.language === 'cz') {
-        type = $('table tr').filter(function() {
-          const text = $(this).find('td:first-child').text().trim();
-          return text === 'Typ';
-        }).find('td:last-child').text().trim();
-
-        if (!type) {
-          $('dt').each((i, el) => {
-            const text = $(el).text().trim();
-            if (text === 'Typ') {
-              type = $(el).next('dd').text().trim();
-            }
-          });
-        }
-
-        if (!type) {
-          type = $('.product-detail-item').filter(function() {
-            return $(this).find('.label').text().trim() === 'Typ';
-          }).find('.value').text().trim();
-        }
-      } else {
-        type = $('.product-table tr:contains("Typ") td:last-child').text().trim();
-      }
-
-  let genres = [];
-  if (this.language === 'cz') {
-        genres = $('table tr').filter(function() {
-          const text = $(this).find('td:first-child').text().trim();
-          return text === 'Kategorie' || text === 'Žánr';
-        }).find('td:last-child a')
-          .map((i, el) => $(el).text().trim())
-          .get();
-
-        if (genres.length === 0) {
-          $('dt').each((i, el) => {
-            const text = $(el).text().trim();
-            if (text === 'Kategorie' || text === 'Žánr') {
-              genres = $(el).next('dd').find('a')
-                .map((i, el) => $(el).text().trim())
-                .get();
-            }
-          });
-        }
-
-        if (genres.length === 0) {
-          genres = $('.product-detail-item').filter(function() {
-            return $(this).find('.label').text().trim() === 'Kategorie' || 
-                   $(this).find('.label').text().trim() === 'Žánr';
-          }).find('.value a')
-            .map((i, el) => $(el).text().trim())
-            .get();
-        }
-      } else {
-        genres = $('.product-table tr:contains("Kategoria") td:last-child a')
-          .map((i, el) => $(el).text().trim())
-          .get();
-      }
-
-  const bookLanguage = this.language === 'cz' ? (() => {
-        let lang = $('table tr').filter(function() {
-          const text = $(this).find('td:first-child').text().trim();
-          return text === 'Jazyk';
-        }).find('td:last-child').text().trim();
-
-        if (!lang) {
-          $('dt').each((i, el) => {
-            const text = $(el).text().trim();
-            if (text === 'Jazyk') {
-              lang = $(el).next('dd').text().trim();
-            }
-          });
-        }
-
-        if (!lang) {
-          lang = $('.product-detail-item').filter(function() {
-            return $(this).find('.label').text().trim() === 'Jazyk';
-          }).find('.value').text().trim();
-        }
-
-        return lang;
-      })() : null;
-
-  if (this.language === 'cz' && bookLanguage && !bookLanguage.toLowerCase().includes('čeština')) {
-        return null;
-      }
-
-      const series = $('.collections_list__09q3I li a, .product-series a, .series-info a, .product-table tr:contains("Seria") td:last-child a')
-        .map((i, el) => $(el).text().trim())
-        .get();
-
-      const rating = parseFloat($('.StarIcon__Label-sc-6cf2a375-2, .rating-value, .product-rating .value, .rating .value').text().trim()) || 
-                     parseFloat($('[class*="rating"]').text().trim()) || null;
-
-      const descriptionHtml = $('.description_description__6gcfq, .product-description, .book-description, .product-desc').html();
-
-      const sanitizedDescription = descriptionHtml
-        ? descriptionHtml
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-        : '';
-
-      let description = sanitizedDescription;
-      if (this.addAudiotekaLinkToDescription) {
-        const audioTekaLink = `<a href="${match.url}">Audioteka link</a>`;
-        description = `${audioTekaLink}<br><br>${sanitizedDescription}`;
-      }
-
-  const pageCoverSrc = $('.product-top_cover__Pth8B, .product-cover img, .book-cover img, .product-image img').attr('src') || $('.product-top_cover__Pth8B, .product-cover img, .book-cover img, .product-image img').attr('data-src');
-  const pageCover = cleanCoverUrl(pageCoverSrc || match.cover) || null;
-
-      const languages = this.language === 'cz' 
-        ? ['czech'] 
-        : ['polish'];
-
-      const fullMetadata = {
-        ...match,
-        cover: pageCover || match.cover,
-        narrator: narrators,
-        type: match.type || 'audiobook',
-        duration: durationInMinutes,
-        publisher,
-        description,
-        // The page's "Typ" (e.g. "Audiobook", "Słuchowisko"); `type` stays "audiobook" for filtering.
-        productType: type || undefined,
-        genres,
-        series: [],
-        tags: series,
-        rating,
-        languages, 
-        identifiers: {
-          audioteka: match.id,
-        },
-      };
-
-      // JSON-LD fallback for subtitle/publisher
-      try {
-        const scripts = $('.product-top script[type="application/ld+json"], script[type="application/ld+json"]');
-        for (let i = 0; i < scripts.length; i++) {
-          const txt = $(scripts[i]).text();
-          if (!txt) continue;
-          try {
-            const data = JSON.parse(txt);
-            const node = Array.isArray(data) ? data[0] : data;
-            if (!fullMetadata.subtitle) {
-              const sub = node.alternativeHeadline || node.headline || node.subtitle || node.alternateName;
-              if (sub && typeof sub === 'string' && sub.trim()) fullMetadata.subtitle = sub.trim();
-            }
-            if (!fullMetadata.publisher) {
-              if (node.publisher) {
-                if (typeof node.publisher === 'string') fullMetadata.publisher = node.publisher;
-                else if (node.publisher.name) fullMetadata.publisher = node.publisher.name;
-              }
-            }
-          } catch (e) {
-            continue;
-          }
-        }
-      } catch (e) {}
-
-      return fullMetadata;
+      const host = new URL(match.url).hostname;
+      if (host !== 'audioteka.com' && !host.endsWith('.audioteka.com')) return match;
+      const response = await this.http.get(match.url, { responseType: 'text' });
+      return this.parseDetail(response.data, match);
     } catch (error) {
-      let requestId = 'req';
-      if (arguments.length >= 2 && arguments[1]) requestId = arguments[1];
-      console.error(`[${requestId}] Error fetching full metadata for ${match.title}:`, error.message, error.stack);
+      console.error(`Audioteka: detail page failed for "${match.title}": ${error.message}`);
       return match;
     }
+  }
+
+  /** `null` drops the product (a Czech-store listing that is not in Czech). */
+  parseDetail(html, match) {
+    const $ = cheerio.load(String(html));
+    const labels = LABELS[this.language === 'cz' ? 'cz' : 'pl'];
+
+    // The page describes the product twice: as JSON-LD (schema.org Audiobook) and as a details list
+    // (<dt>Głosy</dt><dd>...</dd>). JSON-LD first, the list fills what it lacks.
+    let product = {};
+    $('script[type="application/ld+json"]').each((i, el) => {
+      try {
+        const data = JSON.parse($(el).text());
+        for (const node of Array.isArray(data) ? data : [data]) {
+          const types = [].concat((node && node['@type']) || []);
+          if (types.includes('Audiobook') || types.includes('Product') || types.includes('Book')) product = node;
+        }
+      } catch (err) {
+        // not JSON: ignore
+      }
+    });
+    const names = (v) => unique([].concat(v || []).map((n) => text(typeof n === 'string' ? n : n && n.name)));
+
+    const dd = (wanted) => $('dt').filter((i, el) => wanted.includes(text($(el).text()))).first().next('dd');
+    const ddList = (wanted) => {
+      const cell = dd(wanted);
+      const links = unique(cell.find('a').map((i, el) => text($(el).text())).get());
+      return links.length ? links : (text(cell.text()) ? [text(cell.text())] : []);
+    };
+
+    const bookLanguage = text(dd(labels.language).text());
+    if (this.language === 'cz' && bookLanguage && !/češtin|česky/i.test(bookLanguage)) return null;
+
+    let narrators = ddList(labels.narrator);
+    if (!narrators.length) narrators = names(product.readBy);
+    let publisher = ddList(labels.publisher).join(', ');
+    if (!publisher) publisher = names(product.brand).join(', ') || names(product.publisher).join(', ');
+    let genres = ddList(labels.genres);
+    if (!genres.length) genres = names(product.genre);
+    const duration = parseDuration(dd(labels.duration).text()) || parseIsoDuration(product.duration);
+    const productType = text(dd(labels.type).text());
+
+    // "Collections": a link to /cykl/ (/cyklus/) is the series the book belongs to, the others are tags.
+    // Audioteka does not number the volumes.
+    const collections = $('[class*="collections_list__"] a').map((i, el) => ({ href: $(el).attr('href') || '', name: text($(el).text()) })).get();
+    const series = unique(collections.filter((c) => /\/(cykl|cyklus)\//.test(c.href)).map((c) => c.name));
+    const tags = unique(collections.filter((c) => !/\/(cykl|cyklus)\//.test(c.href)).map((c) => c.name));
+
+    const ratingValue = Number(product.aggregateRating && product.aggregateRating.ratingValue);
+    const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? ratingValue : (match.rating || null);
+
+    const descriptionHtml = $('[class*="description_description__"], .product-description, .book-description').first().html();
+    const sanitizedDescription = descriptionHtml
+      ? descriptionHtml
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+          .trim()
+      : '';
+    let description = sanitizedDescription;
+    if (this.addAudiotekaLinkToDescription) {
+      description = `<a href="${match.url}">Audioteka link</a><br><br>${sanitizedDescription}`;
+    }
+
+    const cover = cleanCoverUrl(typeof product.image === 'string' ? product.image : [].concat(product.image || [])[0]) || match.cover || null;
+
+    const fullMetadata = {
+      ...match,
+      cover,
+      narrator: narrators.join(', '),
+      type: match.type || 'audiobook',
+      duration,
+      publisher,
+      description,
+      // The page's "Typ" (e.g. "Audiobook", "Słuchowisko"); `type` stays "audiobook" for filtering.
+      productType: productType || undefined,
+      genres,
+      series,
+      tags,
+      rating,
+      languages: this.language === 'cz' ? ['czech'] : ['polish'],
+      identifiers: {
+        audioteka: match.id,
+      },
+    };
+
+    const subtitle = product.alternativeHeadline || product.subtitle;
+    if (typeof subtitle === 'string' && subtitle.trim()) fullMetadata.subtitle = subtitle.trim();
+
+    return fullMetadata;
   }
 }
 
 module.exports = AudiotekaProvider;
+module.exports.parseDuration = parseDuration;
+module.exports.parseIsoDuration = parseIsoDuration;
 // supported languages for admin UI
 module.exports.supportedLanguages = ['pl', 'cz'];
